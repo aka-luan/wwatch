@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
+import { asSiteId } from "./domain.js";
 import { Store } from "./store.js";
 
 test("connect rejects a duplicate origin and startScan is idempotent while running", async () => {
@@ -152,5 +153,85 @@ test("a second Fleet on the same store sees a running job", async () => {
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
     throw new Error("scan did not settle");
+  }
+});
+
+test("a new down finding alerts once until the site recovers and drops again", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const alerts: string[] = [];
+  let mode: "connect" | "down" | "up" = "connect";
+  let nowMs = Date.parse("2026-08-13T12:00:00.000Z");
+  const fleet = new Fleet(
+    store,
+    {
+      now: () => {
+        nowMs += 1000;
+        return new Date(nowMs);
+      },
+      tlsDaysLeft: async () => null,
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.includes("api.telegram.org")) {
+          alerts.push(url);
+          return new Response("{}", { status: 200 });
+        }
+        if (mode === "down") {
+          throw new Error("connect ECONNREFUSED");
+        }
+        if (url.endsWith("/wp-json")) {
+          return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+        }
+        if (url.includes("/wp-json/wp/v2/plugins")) {
+          return new Response("[]", { status: 200 });
+        }
+        if (url.endsWith("/") || url.includes("bakery.example")) {
+          return new Response("<html></html>", { status: 200 });
+        }
+        return new Response("no", { status: 404 });
+      },
+    },
+    { channels: [{ kind: "telegram", token: "tok", chatId: "99" }] },
+  );
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+
+  mode = "down";
+  const first = await scanUntil(site.id, (row) => row.rollup === "down");
+  assert.equal(alerts.length, 1);
+  assert.equal(first.latest?.findings[0]?.kind, "down");
+
+  await scanUntil(site.id, (row) => row.rollup === "down");
+  assert.equal(alerts.length, 1);
+
+  mode = "up";
+  const recovered = await scanUntil(site.id, (row) => row.rollup === "ok");
+  assert.equal(alerts.length, 1);
+  assert.equal(recovered.latest?.findings.length, 0);
+
+  mode = "down";
+  await scanUntil(site.id, (row) => row.rollup === "down");
+  assert.equal(alerts.length, 2);
+  await store.close();
+
+  async function scanUntil(
+    id: string,
+    ok: (row: NonNullable<Awaited<ReturnType<Fleet["overview"]>>[number]>) => boolean,
+  ) {
+    const previousId = (await fleet.sitePage(asSiteId(id)))?.latest?.id;
+    await fleet.startScan(asSiteId(id));
+    for (let i = 0; i < 50; i += 1) {
+      const row = (await fleet.overview())[0];
+      if (row && !row.running && row.latest && row.latest.id !== previousId && ok(row)) {
+        return row;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    const row = (await fleet.overview())[0];
+    throw new Error(`scan did not settle (${row?.rollup}): ${JSON.stringify(row?.latest?.findings)}`);
   }
 });

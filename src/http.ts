@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { asSiteId } from "./domain.js";
 import { Fleet } from "./fleet.js";
 
-export function createApp(fleet: Fleet, dashboardPassword = ""): Hono {
+export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = ""): Hono {
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -19,6 +19,10 @@ export function createApp(fleet: Fleet, dashboardPassword = ""): Hono {
       "/favicon.ico",
     ]);
     if (open.has(c.req.path)) {
+      await next();
+      return;
+    }
+    if (isCronScanAll(c, cronSecret)) {
       await next();
       return;
     }
@@ -71,7 +75,7 @@ export function createApp(fleet: Fleet, dashboardPassword = ""): Hono {
     }
   });
 
-  app.post("/api/scan-all", async (c) => {
+  app.on(["GET", "POST"], "/api/scan-all", async (c) => {
     const rows = await fleet.overview();
     const started = await Promise.all(rows.map((row) => fleet.startScan(row.site.id, deferFrom(c))));
     return c.json({ started: started.length });
@@ -107,13 +111,20 @@ export function createApp(fleet: Fleet, dashboardPassword = ""): Hono {
   return app;
 }
 
+function isCronScanAll(
+  c: { req: { path: string; header: (name: string) => string | undefined } },
+  cronSecret: string,
+): boolean {
+  return Boolean(cronSecret) && c.req.path === "/api/scan-all" && c.req.header("authorization") === `Bearer ${cronSecret}`;
+}
+
 function deferFrom(c: { executionCtx?: { waitUntil?: (work: Promise<unknown>) => void } }) {
   return (work: Promise<unknown>) => {
-    if (c.executionCtx?.waitUntil) {
-      c.executionCtx.waitUntil(work);
-      return;
+    try {
+      c.executionCtx?.waitUntil?.(work);
+    } catch {
+      void work;
     }
-    void work;
   };
 }
 

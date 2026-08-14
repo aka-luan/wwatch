@@ -32,6 +32,7 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
    - `DASHBOARD_PASSWORD` — the password you type on `/login.html`
    - `TURSO_DATABASE_URL` — `libsql://...`
    - `TURSO_AUTH_TOKEN`
+   - `CRON_SECRET` — Vercel sends this as `Authorization: Bearer …` on the daily scan. Without it the board password blocks the cron.
 
 4. Deploy. Open the Vercel URL, sign in, add a site.
 
@@ -66,6 +67,13 @@ wwatch starts a scan as soon as the site is added.
 - TLS days left, on HTTPS origins
 
 A scan is a snapshot. The site row shows the latest finished snapshot. A running scan does not rewrite that row until it finishes.
+
+Vercel hits `GET /api/scan-all` every day at 06:00 UTC. That is the same route as **Scan all**. Hobby only allows a daily cron, which is the interval this board needs. Without the cron, the board stays on the last scan you started by hand.
+
+A new down, auth failure, or public backup `wp-config` sends a message. The same finding the next day does not. Set one or both:
+
+- Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
+- Email: `RESEND_API_KEY` and `ALERT_EMAIL`. Optional `ALERT_FROM`. The default sender is Resend's `beth.t@example.com`, which only delivers to the address on that Resend account.
 
 Core REST cannot upgrade a plugin to a new version. The board can activate or deactivate a plugin. It will not pretend it can one-click update.
 

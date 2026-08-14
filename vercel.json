@@ -4,5 +4,11 @@
       "maxDuration": 60,
       "includeFiles": "public/**"
     }
-  }
+  },
+  "crons": [
+    {
+      "path": "/api/scan-all",
+      "schedule": "0 6 * * *"
+    }
+  ]
 }

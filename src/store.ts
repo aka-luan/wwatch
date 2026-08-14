@@ -114,7 +114,7 @@ export class Store {
   async latestScan(siteId: SiteId): Promise<ScanSnapshot | null> {
     await this.#ready;
     const row = await this.#one(
-      `SELECT * FROM scans WHERE site_id = ? ORDER BY finished_at DESC LIMIT 1`,
+      `SELECT * FROM scans WHERE site_id = ? ORDER BY finished_at DESC, rowid DESC LIMIT 1`,
       [siteId],
     );
     return row ? fromScanRow(row) : null;

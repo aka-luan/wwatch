@@ -10,10 +10,12 @@ import {
   type InstalledPlugin,
   type OverviewRow,
   type ScanId,
+  type ScanSnapshot,
   type Site,
   type SiteId,
   type SitePage,
 } from "./domain.js";
+import { sendAlerts, type AlertConfig } from "./alert.js";
 import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
 import { Store, type StoredSite } from "./store.js";
 
@@ -22,10 +24,12 @@ export type Defer = (work: Promise<unknown>) => void;
 export class Fleet {
   #store: Store;
   #deps: ScanDeps;
+  #alerts: AlertConfig;
 
-  constructor(store: Store, deps: ScanDeps = defaultDeps) {
+  constructor(store: Store, deps: ScanDeps = defaultDeps, alerts: AlertConfig = { channels: [] }) {
     this.#store = store;
     this.#deps = deps;
+    this.#alerts = alerts;
   }
 
   async connect(input: ConnectInput): Promise<Site> {
@@ -101,15 +105,14 @@ export class Fleet {
 
   async #run(site: StoredSite): Promise<void> {
     try {
-      const snapshot = await runScan(site, this.#deps);
-      await this.#store.insertScan(snapshot);
+      await this.#record(site, await runScan(site, this.#deps));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "scan failed";
       const now = this.#deps.now().toISOString();
       const findings = [
         { kind: "down" as const, severity: "crit" as const, title: "Scan failed", detail },
       ];
-      await this.#store.insertScan({
+      await this.#record(site, {
         id: asScanId(randomUUID()),
         siteId: site.id,
         startedAt: now,
@@ -122,5 +125,17 @@ export class Fleet {
     } finally {
       await this.#store.deleteJob(site.id);
     }
+  }
+
+  async #record(site: StoredSite, snapshot: ScanSnapshot): Promise<void> {
+    const previous = await this.#store.latestScan(site.id);
+    await this.#store.insertScan(snapshot);
+    await sendAlerts({
+      site,
+      previous: previous?.findings ?? [],
+      current: snapshot.findings,
+      config: this.#alerts,
+      fetch: this.#deps.fetch,
+    });
   }
 }

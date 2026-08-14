@@ -89,6 +89,11 @@ assert.equal(home.status, 200);
 const html = await home.text();
 assert.match(html, /wwatch/);
 
+const scanAll = await app.request("/api/scan-all");
+assert.equal(scanAll.status, 200);
+const started = (await scanAll.json()) as { started: number };
+assert.equal(started.started, 1);
+
 wp.close();
 console.log("verify ok");
 
