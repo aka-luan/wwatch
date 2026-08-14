@@ -87,7 +87,7 @@ function rowHtml(row) {
   const crit = findings.filter((f) => f.severity === "crit").length;
   const warn = findings.filter((f) => f.severity === "warn").length;
   return `
-    <tr class="row" data-id="${row.site.id}">
+    <tr class="row" data-id="${escape(row.site.id)}">
       <td>
         <div>${escape(row.site.name)}</div>
         <div class="mono host">${escape(host(row.site.origin))}</div>
@@ -273,7 +273,8 @@ function escape(value) {
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
 async function api(path, init) {

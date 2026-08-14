@@ -121,7 +121,7 @@ export function parseOrigin(raw: string, opts?: { allowHttp?: boolean }): Origin
   } catch {
     throw new Error("Origin must be an absolute URL");
   }
-  const local = url.hostname === "localhost" || url.hostname === "127.0.0.1";
+  const local = isLoopbackHost(url.hostname);
   const allowHttp = opts?.allowHttp ?? local;
   if (url.protocol !== "https:" && !(allowHttp && url.protocol === "http:")) {
     throw new Error("Origin must be https");
@@ -129,10 +129,38 @@ export function parseOrigin(raw: string, opts?: { allowHttp?: boolean }): Origin
   if (url.username || url.password) {
     throw new Error("Origin must not include credentials");
   }
+  if (isBlockedOriginHost(url.hostname)) {
+    throw new Error("Origin must not be a link-local or cloud metadata address");
+  }
   url.hash = "";
   url.search = "";
   url.pathname = "";
   return url.origin as Origin;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "");
+  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+}
+
+function isBlockedOriginHost(hostname: string): boolean {
+  const host = hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  if (
+    host === "metadata.google.internal" ||
+    host.endsWith(".metadata.google.internal") ||
+    host === "metadata.goog" ||
+    host === "fd00:ec2::254"
+  ) {
+    return true;
+  }
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
+    return host.startsWith("169.254.") || host.startsWith("0.");
+  }
+  const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  if (mapped?.[1]) {
+    return isBlockedOriginHost(mapped[1]);
+  }
+  return host === "::" || host.startsWith("fe80:");
 }
 
 export function parsePluginRef(raw: string): PluginRef {

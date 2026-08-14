@@ -54,7 +54,7 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
   let coreVersion: string | null = null;
   let plugins: InstalledPlugin[] = [];
 
-  const home = await read(deps, site.origin + "/", { redirect: "follow" });
+  const home = await readSameOrigin(deps, site.origin + "/", site.origin);
   if (home.kind === "network") {
     findings.push({
       kind: "down",
@@ -456,6 +456,31 @@ async function read(
   }
 }
 
+async function readSameOrigin(deps: ScanDeps, url: string, origin: string): Promise<Hit> {
+  let current = url;
+  for (let n = 0; n < 5; n += 1) {
+    const hit = await read(deps, current);
+    if (hit.kind === "network" || !isRedirectStatus(hit.status)) {
+      return hit;
+    }
+    const location = hit.headers.get("location");
+    if (!location) {
+      return hit;
+    }
+    let next: URL;
+    try {
+      next = new URL(location, current);
+    } catch {
+      return hit;
+    }
+    if (next.origin !== origin) {
+      return hit;
+    }
+    current = next.toString();
+  }
+  return { kind: "network", detail: "too many redirects" };
+}
+
 function isWpIndex(body: string): boolean {
   try {
     const json = JSON.parse(body) as { namespaces?: unknown };
@@ -618,6 +643,10 @@ function extractSameOriginLinks(origin: string, html: string): string[] {
     out.push(abs.toString());
   }
   return out;
+}
+
+function isRedirectStatus(status: number): boolean {
+  return status === 301 || status === 302 || status === 303 || status === 307 || status === 308;
 }
 
 function looksLikeFile(body: string, path: string): boolean {
