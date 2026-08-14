@@ -44,11 +44,13 @@ Application Passwords for your WordPress sites will live in Turso. Treat that da
 ## Connect a site
 
 1. In wp-admin, open **Users → Profile**.
-2. Create an Application Password named wwatch.
+2. Create an Application Password.
 3. On the board, click **Add site**.
-4. Paste the site URL, your WP username, and the Application Password.
+4. Paste the site URL, your WordPress **login** (not the Application Password name), and the password you just copied.
 
 Use an administrator account. Application Passwords inherit that user's capabilities. WordPress usually requires HTTPS for them.
+
+If connect says WordPress did not see the password, the host or CDN dropped the `Authorization` header. Hostinger CDN does this. In hPanel, disable CDN or exclude `/wp-json`, or add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess`.
 
 wwatch starts a scan as soon as the site is added.
 

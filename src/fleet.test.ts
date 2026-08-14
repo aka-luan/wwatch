@@ -92,7 +92,7 @@ test("connect rejects a bad application password before storing the site", async
         username: "luan",
         applicationPassword: "wrong",
       }),
-    /rejected/,
+    /did not see the Application Password/,
   );
   assert.equal((await store.listSites()).length, 0);
   await store.close();
