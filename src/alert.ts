@@ -32,7 +32,7 @@ export function isAlertable(finding: Finding): boolean {
   if (finding.kind === "down" || finding.kind === "auth_failed") {
     return true;
   }
-  return finding.kind === "exposed_path" && finding.severity === "crit" && finding.path.includes("wp-config");
+  return finding.kind === "exposed_path" && finding.severity === "crit";
 }
 
 export function findingIdentity(finding: Finding): string {

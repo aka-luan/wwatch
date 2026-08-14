@@ -7,6 +7,10 @@ let selected = null;
 let sites = [];
 
 document.getElementById("add").addEventListener("click", showAdd);
+document.getElementById("logout").addEventListener("click", async () => {
+  await api("/api/logout", { method: "POST" });
+  location.href = "/";
+});
 document.getElementById("scan-all").addEventListener("click", async () => {
   await api("/api/scan-all", { method: "POST" });
   await refresh();
@@ -38,10 +42,18 @@ async function refresh() {
   renderTable();
   if (selected) {
     const row = sites.find((item) => item.site.id === selected);
-    if (row) {
-      renderDrawer(row);
+    if (!row) {
+      selected = null;
+      closeDrawer();
+      return;
     }
+    await showSite(selected);
   }
+}
+
+async function showSite(id) {
+  const page = await api(`/api/sites/${id}`);
+  renderDrawer(page);
 }
 
 function renderStats() {
@@ -94,10 +106,7 @@ function renderTable() {
   for (const el of table.querySelectorAll("[data-id]")) {
     el.addEventListener("click", () => {
       selected = el.dataset.id;
-      const row = sites.find((item) => item.site.id === selected);
-      if (row) {
-        renderDrawer(row);
-      }
+      showSite(selected);
     });
   }
 }
@@ -169,6 +178,7 @@ function cardHtml(row) {
 function renderDrawer(row) {
   const findings = row.latest?.findings ?? [];
   const plugins = row.latest?.plugins ?? [];
+  const previous = (row.history ?? []).filter((scan) => scan.id !== row.latest?.id);
   document.body.classList.add("drawer-open");
   drawer.hidden = false;
   drawer.classList.remove("hidden");
@@ -180,6 +190,7 @@ function renderDrawer(row) {
       </div>
       <div class="actions">
         <button type="button" id="scan-one">Scan</button>
+        <button type="button" id="edit-site">Edit</button>
         <button type="button" id="close-drawer">Close</button>
       </div>
     </header>
@@ -189,6 +200,12 @@ function renderDrawer(row) {
       findings.length
         ? findings.map(findingHtml).join("")
         : "<p class='help'>No findings on the last scan.</p>"
+    }
+    <h3>Previous scans</h3>
+    ${
+      previous.length
+        ? previous.map(scanHtml).join("")
+        : "<p class='help'>No earlier scans.</p>"
     }
     <h3>Plugins</h3>
     ${
@@ -200,6 +217,7 @@ function renderDrawer(row) {
       <button class="danger" type="button" id="remove">Remove site</button>
     </div>`;
   drawer.querySelector("#close-drawer").addEventListener("click", closeDrawer);
+  drawer.querySelector("#edit-site").addEventListener("click", () => showEdit(row));
   drawer.querySelector("#scan-one").addEventListener("click", async () => {
     await api(`/api/sites/${row.site.id}/scan`, { method: "POST" });
     await refresh();
@@ -215,6 +233,11 @@ function renderDrawer(row) {
   });
   for (const button of drawer.querySelectorAll("[data-plugin]")) {
     button.addEventListener("click", async () => {
+      const name = button.dataset.name ?? button.dataset.plugin;
+      const status = button.dataset.status;
+      if (!confirm(`Set ${name} to ${status}?`)) {
+        return;
+      }
       await api(`/api/sites/${row.site.id}/plugins`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -227,6 +250,15 @@ function renderDrawer(row) {
       await refresh();
     });
   }
+}
+
+function scanHtml(scan) {
+  return `
+    <div class="scan">
+      ${pill(scan.rollup)}
+      <span>${ago(scan.finishedAt)}</span>
+      <span>${scan.counts.crit} crit · ${scan.counts.warn} warn</span>
+    </div>`;
 }
 
 function findingHtml(finding) {
@@ -249,7 +281,7 @@ function pluginHtml(plugin, findings) {
         ${update ? pill("warn") + " " + escape(plugin.version + " → " + update.latest) : `<span class="mono"> ${escape(plugin.version)}</span>`}
         <p class="mono">${escape(plugin.ref)}</p>
       </div>
-      <button type="button" data-plugin="${escape(plugin.ref)}" data-status="${next}">
+      <button type="button" data-plugin="${escape(plugin.ref)}" data-name="${escape(plugin.name)}" data-status="${next}">
         Set ${next}
       </button>
     </div>`;
@@ -291,6 +323,48 @@ function showAdd() {
       await refresh();
     } catch (error) {
       err.textContent = error instanceof Error ? error.message : "Could not connect";
+    }
+  });
+}
+
+function showEdit(row) {
+  document.body.classList.add("modal-open");
+  modal.hidden = false;
+  modal.classList.remove("hidden");
+  modal.innerHTML = `
+    <form class="card" id="edit-form">
+      <h2>Edit ${escape(row.site.name)}</h2>
+      <p class="help">Leave the Application Password blank to keep the one already stored. Changing username or password checks the REST API before saving, so scan history stays.</p>
+      <label>Name<input name="name" value="${escape(row.site.name)}" /></label>
+      <p class="help mono">${escape(row.site.origin)}</p>
+      <label>WP username<input name="username" value="${escape(row.username ?? "")}" autocomplete="username" /></label>
+      <label>Application password<input name="applicationPassword" placeholder="leave blank to keep" autocomplete="new-password" /></label>
+      <p id="edit-error" class="error"></p>
+      <div class="row-actions">
+        <button type="button" id="cancel-edit">Cancel</button>
+        <button class="primary" type="submit">Save</button>
+      </div>
+    </form>`;
+  modal.querySelector("#cancel-edit").addEventListener("click", closeModal);
+  modal.querySelector("#edit-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const err = modal.querySelector("#edit-error");
+    err.textContent = "";
+    const data = Object.fromEntries(new FormData(event.target));
+    const body = { name: data.name, username: data.username };
+    if (String(data.applicationPassword ?? "").trim()) {
+      body.applicationPassword = data.applicationPassword;
+    }
+    try {
+      await api(`/api/sites/${row.site.id}`, {
+        method: "PATCH",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      closeModal();
+      await refresh();
+    } catch (error) {
+      err.textContent = error instanceof Error ? error.message : "Could not update";
     }
   });
 }
@@ -352,7 +426,7 @@ function escape(value) {
 
 async function api(path, init) {
   const response = await fetch(path, init);
-  if (response.status === 401 && path !== "/api/login") {
+  if (response.status === 401 && path !== "/api/login" && path !== "/api/logout") {
     location.href = "/login.html";
     throw new Error("auth required");
   }

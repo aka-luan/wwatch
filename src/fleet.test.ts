@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
-import { asSiteId } from "./domain.js";
+import { asScanId, asSiteId } from "./domain.js";
 import { Store } from "./store.js";
 
 test("connect rejects a duplicate origin and startScan is idempotent while running", async () => {
@@ -234,4 +234,120 @@ test("a new down finding alerts once until the site recovers and drops again", a
     const row = (await fleet.overview())[0];
     throw new Error(`scan did not settle (${row?.rollup}): ${JSON.stringify(row?.latest?.findings)}`);
   }
+});
+
+test("update renames without reconnecting and rotates a password after assertConnect", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  let pluginCalls = 0;
+  const fleet = new Fleet(store, {
+    now: () => new Date("2026-08-13T12:00:00.000Z"),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (url.includes("/wp-json/wp/v2/plugins")) {
+        pluginCalls += 1;
+        return new Response("[]", { status: 200 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const afterConnect = pluginCalls;
+  await fleet.update(site.id, { name: "Shop" });
+  assert.equal(pluginCalls, afterConnect);
+  const page = await fleet.sitePage(site.id);
+  assert.equal(page.site.name, "Shop");
+  assert.equal(page.username, "luan");
+  await fleet.update(site.id, { applicationPassword: "bbbb cccc" });
+  assert.ok(pluginCalls > afterConnect);
+  assert.equal((await store.getSite(site.id))?.applicationPassword, "bbbbcccc");
+  await store.close();
+});
+
+test("update keeps the old password when connect fails", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  let allow = true;
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (!allow) {
+        return new Response("no", { status: 401 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  allow = false;
+  await assert.rejects(() => fleet.update(site.id, { applicationPassword: "nope" }), /Application Password|did not see/);
+  assert.equal((await store.getSite(site.id))?.applicationPassword, "aaaa");
+  await store.close();
+});
+
+test("sitePage lists earlier scans newest first", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const fleet = new Fleet(store, {
+    now: () => new Date("2026-08-13T12:00:00.000Z"),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  await store.insertScan({
+    id: asScanId("c1"),
+    siteId: site.id,
+    startedAt: "2026-08-12T10:00:00.000Z",
+    finishedAt: "2026-08-12T10:00:05.000Z",
+    rollup: "down",
+    coreVersion: null,
+    plugins: [],
+    findings: [{ kind: "down", severity: "crit", title: "down", detail: "" }],
+  });
+  await store.insertScan({
+    id: asScanId("c2"),
+    siteId: site.id,
+    startedAt: "2026-08-13T10:00:00.000Z",
+    finishedAt: "2026-08-13T10:00:05.000Z",
+    rollup: "ok",
+    coreVersion: "6.7.1",
+    plugins: [],
+    findings: [],
+  });
+  const page = await fleet.sitePage(site.id);
+  assert.equal(page.latest?.id, "c2");
+  assert.equal(page.history.length, 2);
+  assert.equal(page.history[0]?.id, "c2");
+  assert.equal(page.history[1]?.id, "c1");
+  assert.equal(page.history[1]?.counts.crit, 1);
+  await store.close();
 });

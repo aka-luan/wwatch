@@ -14,6 +14,7 @@ import {
   type Site,
   type SiteId,
 } from "./domain.js";
+import { isWrapped, keyFromSecret, unwrapPassword, wrapPassword, wrapSecretFromEnv } from "./wrap.js";
 
 export type StoredSite = Site & {
   username: string;
@@ -23,27 +24,38 @@ export type StoredSite = Site & {
 export type StoreConfig = {
   url: string;
   authToken?: string;
+  wrapSecret?: string;
 };
 
 const STALE_JOB_MS = 3 * 60 * 1000;
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+export const LOGIN_MAX_FAILURES = 10;
+const HISTORY_LIMIT = 10;
 
 export function storeConfigFromEnv(): StoreConfig {
+  const wrapSecret = wrapSecretFromEnv();
   if (process.env.TURSO_DATABASE_URL) {
     return {
       url: process.env.TURSO_DATABASE_URL,
       ...(process.env.TURSO_AUTH_TOKEN ? { authToken: process.env.TURSO_AUTH_TOKEN } : {}),
+      ...(wrapSecret ? { wrapSecret } : {}),
     };
   }
   const path = process.env.WATCH_DB ?? "data/watch.db";
-  return { url: path.startsWith("file:") ? path : `file:${path}` };
+  return {
+    url: path.startsWith("file:") ? path : `file:${path}`,
+    ...(wrapSecret ? { wrapSecret } : {}),
+  };
 }
 
 export class Store {
   #db!: Client;
   #ready: Promise<void>;
+  #key: Buffer | null;
 
   constructor(config: StoreConfig | string) {
     const resolved = typeof config === "string" ? { url: fileUrl(config) } : config;
+    this.#key = resolved.wrapSecret ? keyFromSecret(resolved.wrapSecret) : null;
     if (resolved.url.startsWith("file:")) {
       const path = resolved.url.slice("file:".length);
       mkdirSync(dirname(path), { recursive: true });
@@ -57,7 +69,18 @@ export class Store {
     await this.#db.execute({
       sql: `INSERT INTO sites (id, name, origin, username, application_password)
             VALUES (?, ?, ?, ?, ?)`,
-      args: [site.id, site.name, site.origin, site.username, site.applicationPassword],
+      args: [site.id, site.name, site.origin, site.username, this.#seal(site.applicationPassword)],
+    });
+    return publicSite(site);
+  }
+
+  async updateSite(site: StoredSite): Promise<Site> {
+    await this.#ready;
+    await this.#db.execute({
+      sql: `UPDATE sites
+            SET name = ?, username = ?, application_password = ?
+            WHERE id = ?`,
+      args: [site.name, site.username, this.#seal(site.applicationPassword), site.id],
     });
     return publicSite(site);
   }
@@ -68,13 +91,13 @@ export class Store {
       `SELECT * FROM sites WHERE id = ?`,
       [id],
     );
-    return row ? fromSiteRow(row) : null;
+    return row ? this.#fromSiteRow(row) : null;
   }
 
   async findByOrigin(origin: Origin): Promise<StoredSite | null> {
     await this.#ready;
     const row = await this.#one(`SELECT * FROM sites WHERE origin = ?`, [origin]);
-    return row ? fromSiteRow(row) : null;
+    return row ? this.#fromSiteRow(row) : null;
   }
 
   async deleteSite(id: SiteId): Promise<void> {
@@ -89,7 +112,7 @@ export class Store {
     const result = await this.#db.execute(
       `SELECT * FROM sites ORDER BY name COLLATE NOCASE`,
     );
-    return result.rows.map((row) => fromSiteRow(asRecord(row)));
+    return result.rows.map((row) => this.#fromSiteRow(asRecord(row)));
   }
 
   async insertScan(snapshot: ScanSnapshot): Promise<void> {
@@ -112,12 +135,17 @@ export class Store {
   }
 
   async latestScan(siteId: SiteId): Promise<ScanSnapshot | null> {
+    const scans = await this.listScans(siteId, 1);
+    return scans[0] ?? null;
+  }
+
+  async listScans(siteId: SiteId, limit = HISTORY_LIMIT): Promise<ScanSnapshot[]> {
     await this.#ready;
-    const row = await this.#one(
-      `SELECT * FROM scans WHERE site_id = ? ORDER BY finished_at DESC, rowid DESC LIMIT 1`,
-      [siteId],
-    );
-    return row ? fromScanRow(row) : null;
+    const result = await this.#db.execute({
+      sql: `SELECT * FROM scans WHERE site_id = ? ORDER BY finished_at DESC, rowid DESC LIMIT ?`,
+      args: [siteId, limit],
+    });
+    return result.rows.map((row) => fromScanRow(asRecord(row)));
   }
 
   async putJob(siteId: SiteId, job: { id: ScanId; startedAt: string }): Promise<void> {
@@ -138,6 +166,41 @@ export class Store {
   async deleteJob(siteId: SiteId): Promise<void> {
     await this.#ready;
     await this.#db.execute({ sql: `DELETE FROM jobs WHERE site_id = ?`, args: [siteId] });
+  }
+
+  async loginAllowed(ip: string): Promise<boolean> {
+    await this.#ready;
+    const row = await this.#one(`SELECT count, reset_at FROM login_failures WHERE ip = ?`, [ip]);
+    if (!row) {
+      return true;
+    }
+    if (Date.now() > int(row, "reset_at")) {
+      return true;
+    }
+    return int(row, "count") < LOGIN_MAX_FAILURES;
+  }
+
+  async recordLoginFailure(ip: string): Promise<void> {
+    await this.#ready;
+    const now = Date.now();
+    const row = await this.#one(`SELECT count, reset_at FROM login_failures WHERE ip = ?`, [ip]);
+    if (!row || now > int(row, "reset_at")) {
+      await this.#db.execute({
+        sql: `INSERT INTO login_failures (ip, count, reset_at) VALUES (?, 1, ?)
+              ON CONFLICT(ip) DO UPDATE SET count = 1, reset_at = excluded.reset_at`,
+        args: [ip, now + LOGIN_WINDOW_MS],
+      });
+      return;
+    }
+    await this.#db.execute({
+      sql: `UPDATE login_failures SET count = count + 1 WHERE ip = ?`,
+      args: [ip],
+    });
+  }
+
+  async clearLoginFailures(ip: string): Promise<void> {
+    await this.#ready;
+    await this.#db.execute({ sql: `DELETE FROM login_failures WHERE ip = ?`, args: [ip] });
   }
 
   async overview(): Promise<OverviewRow[]> {
@@ -186,8 +249,14 @@ export class Store {
         id TEXT NOT NULL,
         started_at TEXT NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS login_failures (
+        ip TEXT PRIMARY KEY,
+        count INTEGER NOT NULL,
+        reset_at INTEGER NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS scans_site_finished ON scans (site_id, finished_at DESC);
     `);
+    await this.#wrapExistingPasswords();
     if (config.url.startsWith("file:")) {
       try {
         chmodSync(config.url.slice("file:".length), 0o600);
@@ -201,6 +270,38 @@ export class Store {
     const result = await this.#db.execute({ sql, args });
     const row = result.rows[0];
     return row ? asRecord(row) : null;
+  }
+
+  #seal(plain: string): string {
+    return this.#key ? wrapPassword(plain, this.#key) : plain;
+  }
+
+  #fromSiteRow(row: Record<string, unknown>): StoredSite {
+    return {
+      id: asSiteId(text(row, "id")),
+      name: text(row, "name"),
+      origin: text(row, "origin") as Origin,
+      username: text(row, "username"),
+      applicationPassword: unwrapPassword(text(row, "application_password"), this.#key),
+    };
+  }
+
+  async #wrapExistingPasswords(): Promise<void> {
+    if (!this.#key) {
+      return;
+    }
+    const result = await this.#db.execute(`SELECT id, application_password FROM sites`);
+    for (const row of result.rows) {
+      const rec = asRecord(row);
+      const stored = text(rec, "application_password");
+      if (isWrapped(stored)) {
+        continue;
+      }
+      await this.#db.execute({
+        sql: `UPDATE sites SET application_password = ? WHERE id = ?`,
+        args: [wrapPassword(stored, this.#key), text(rec, "id")],
+      });
+    }
   }
 }
 
@@ -239,14 +340,21 @@ function text(row: Record<string, unknown>, key: string): string {
   return value;
 }
 
-function fromSiteRow(row: Record<string, unknown>): StoredSite {
-  return {
-    id: asSiteId(text(row, "id")),
-    name: text(row, "name"),
-    origin: text(row, "origin") as Origin,
-    username: text(row, "username"),
-    applicationPassword: text(row, "application_password"),
-  };
+function int(row: Record<string, unknown>, key: string): number {
+  const value = row[key];
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+  if (typeof value === "bigint") {
+    return Number(value);
+  }
+  if (typeof value === "string" && value.trim()) {
+    const parsed = Number(value);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  throw new Error(`expected ${key} to be a number`);
 }
 
 function fromScanRow(row: Record<string, unknown>): ScanSnapshot {

@@ -294,7 +294,8 @@ tr.row {
 }
 
 .finding,
-.plugin {
+.plugin,
+.scan {
   border-top: 1px solid var(--line);
   padding: 12px 0;
 }
@@ -313,6 +314,14 @@ tr.row {
 .finding strong,
 .plugin strong {
   overflow-wrap: anywhere;
+}
+
+.scan {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--muted);
 }
 
 .finding p,

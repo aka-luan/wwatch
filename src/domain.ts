@@ -21,6 +21,12 @@ export type ConnectInput = {
   applicationPassword: string;
 };
 
+export type UpdateInput = {
+  name?: string;
+  username?: string;
+  applicationPassword?: string;
+};
+
 export type InstalledPlugin = {
   ref: PluginRef;
   slug: string;
@@ -104,7 +110,17 @@ export type OverviewRow = {
   rollup: Rollup;
 };
 
-export type SitePage = OverviewRow;
+export type ScanSummary = {
+  id: ScanId;
+  finishedAt: string;
+  rollup: FinishedRollup;
+  counts: { crit: number; warn: number; info: number };
+};
+
+export type SitePage = OverviewRow & {
+  username: string;
+  history: ScanSummary[];
+};
 
 export function asSiteId(value: string): SiteId {
   return value as SiteId;
@@ -231,6 +247,15 @@ export function findingCounts(findings: Finding[]): { crit: number; warn: number
     counts[finding.severity] += 1;
   }
   return counts;
+}
+
+export function scanSummary(snapshot: ScanSnapshot): ScanSummary {
+  return {
+    id: snapshot.id,
+    finishedAt: snapshot.finishedAt,
+    rollup: snapshot.rollup,
+    counts: findingCounts(snapshot.findings),
+  };
 }
 
 function parseVersion(raw: string): number[] | null {
