@@ -10,7 +10,14 @@ export function createApp(fleet: Fleet, dashboardPassword = ""): Hono {
       await next();
       return;
     }
-    const open = new Set(["/login.html", "/login", "/api/login", "/styles.css", "/app.js"]);
+    const open = new Set([
+      "/login.html",
+      "/login",
+      "/api/login",
+      "/styles.css",
+      "/app.js",
+      "/favicon.ico",
+    ]);
     if (open.has(c.req.path)) {
       await next();
       return;

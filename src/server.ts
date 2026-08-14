@@ -1,10 +1,10 @@
 import { serve } from "@hono/node-server";
 import { serveStatic } from "@hono/node-server/serve-static";
-import { createApp } from "./app.js";
+import { createApp } from "./http.js";
 import { Fleet } from "./fleet.js";
 import { Store, storeConfigFromEnv } from "./store.js";
 
-export { createApp } from "./app.js";
+export { createApp } from "./http.js";
 
 export function createLocalApp(fleet: Fleet, dashboardPassword = "") {
   const app = createApp(fleet, dashboardPassword);
