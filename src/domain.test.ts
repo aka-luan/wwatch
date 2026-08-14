@@ -24,6 +24,15 @@ test("parseOrigin rejects credentials in the URL", () => {
   assert.throws(() => parseOrigin("https://user:pass@bakery.example"), /credentials/);
 });
 
+test("parseOrigin rejects link-local and cloud metadata hosts", () => {
+  assert.throws(() => parseOrigin("https://169.254.169.254"), /metadata/);
+  assert.throws(() => parseOrigin("https://metadata.google.internal"), /metadata/);
+  assert.throws(() => parseOrigin("https://[fd00:ec2::254]"), /metadata/);
+  assert.throws(() => parseOrigin("https://[fe80::1]"), /metadata/);
+  assert.equal(parseOrigin("https://bakery.example"), "https://bakery.example");
+  assert.equal(parseOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
+});
+
 test("pluginSlug uses the directory, not the file", () => {
   const ref = parsePluginRef("woocommerce/woocommerce.php");
   assert.equal(pluginSlug(ref), "woocommerce");

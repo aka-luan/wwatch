@@ -105,6 +105,38 @@ test("runScan marks a dead origin as down", async () => {
   assert.equal(snapshot.findings[0]?.kind, "down");
 });
 
+test("runScan does not follow homepage redirects off-origin", async () => {
+  const fetched: string[] = [];
+  await runScan(
+    {
+      id: asSiteId("site-ssrf"),
+      name: "Redirect",
+      origin: parseOrigin("https://bakery.example"),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    {
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => null,
+      fetch: async (input) => {
+        const url = String(input);
+        fetched.push(url);
+        if (url === "https://bakery.example/") {
+          return new Response("", { status: 302, headers: { location: "https://169.254.169.254/" } });
+        }
+        if (url.endsWith("/wp-json")) {
+          return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+        }
+        return new Response("[]", { status: 200 });
+      },
+    },
+  );
+  assert.equal(
+    fetched.some((url) => url.includes("169.254.169.254")),
+    false,
+  );
+});
+
 test("describeAuthFailure names Hostinger CDN when the header never reached WordPress", () => {
   const explained = describeAuthFailure({
     status: 401,
