@@ -45,3 +45,13 @@ test("store round-trips a site and its latest scan", async () => {
   assert.equal(rows[0]?.rollup, "degraded");
   await store.close();
 });
+
+test("remote Turso URLs do not load the native libsql addon", async () => {
+  const store = new Store({ url: "http://127.0.0.1:1", authToken: "token" });
+  await assert.rejects(() => store.listSites(), (error: unknown) => {
+    const message = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+    assert.equal(message.includes("Cannot find module '@libsql/"), false);
+    assert.match(message, /fetch|ECONNREFUSED|network|connect|HTTP/i);
+    return true;
+  });
+});
