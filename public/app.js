@@ -192,12 +192,12 @@ function showAdd() {
   modal.innerHTML = `
     <form class="card" id="add-form">
       <h2>Add a WordPress site</h2>
-      <p class="help">In wp-admin open Users → Profile → Application Passwords. Name it wwatch, copy the password, paste it here. Use an administrator account.</p>
+      <p class="help">In wp-admin open Users → Profile → Application Passwords. Create one on an administrator account. Username is that account's login (what you type at wp-login), not the password's name.</p>
       <label>Name<input name="name" placeholder="Bakery" /></label>
       <label>Site URL<input name="origin" required placeholder="https://bakery.example" /></label>
-      <label>WP username<input name="username" required autocomplete="username" /></label>
+      <label>WP username<input name="username" required placeholder="your WordPress login" autocomplete="username" /></label>
       <label>Application password<input name="applicationPassword" required autocomplete="current-password" /></label>
-      <p id="add-error" class="help"></p>
+      <p id="add-error" class="error"></p>
       <div class="row-actions">
         <button type="button" id="cancel-add">Cancel</button>
         <button class="primary" type="submit">Connect</button>

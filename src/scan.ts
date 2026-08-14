@@ -111,11 +111,12 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
     headers: basic(site),
   });
   if (auth.kind === "http" && (auth.status === 401 || auth.status === 403)) {
+    const explained = describeAuthFailure(auth);
     findings.push({
       kind: "auth_failed",
       severity: "crit",
-      title: "Application Password was rejected",
-      detail: `GET /wp/v2/plugins returned ${auth.status}`,
+      title: explained.title,
+      detail: explained.detail,
     });
   } else if (auth.kind === "http" && auth.status === 429) {
     findings.push({
@@ -275,11 +276,99 @@ export async function assertConnect(site: StoredSite, deps: ScanDeps = defaultDe
     throw new Error(`REST API did not respond: ${plugins.detail}`);
   }
   if (plugins.status === 401 || plugins.status === 403) {
-    throw new Error("Application Password was rejected");
+    const explained = describeAuthFailure(plugins);
+    throw new Error(`${explained.title}. ${explained.detail}`);
   }
   if (plugins.status !== 200) {
     throw new Error(`Plugin list returned ${plugins.status}`);
   }
+}
+
+export function describeAuthFailure(hit: { status: number; body: string; headers: Headers }): {
+  title: string;
+  detail: string;
+} {
+  const fault = wpFault(hit.body);
+  const wpMessage = fault?.message ? stripTags(fault.message) : "";
+  const hint = authHeaderHint(hit.headers);
+
+  if (hit.status === 403 && fault?.code === "rest_cannot_view_plugins") {
+    return {
+      title: "This WordPress user cannot manage plugins",
+      detail: sentences(
+        "The Application Password worked, but this account cannot manage plugins.",
+        "Use an administrator.",
+        wpMessage,
+      ),
+    };
+  }
+
+  if (fault?.code === "incorrect_password" || fault?.code === "invalid_username") {
+    return {
+      title: "Application Password was rejected",
+      detail: sentences(
+        "Use your WordPress login as the username, not the name you gave the Application Password.",
+        wpMessage,
+      ),
+    };
+  }
+
+  if (
+    fault?.code === "application_passwords_disabled" ||
+    fault?.code === "application_passwords_disabled_for_user"
+  ) {
+    return {
+      title: "Application Passwords are disabled",
+      detail: sentences("A security plugin or host setting is blocking Application Passwords.", wpMessage),
+    };
+  }
+
+  if (hit.status === 403) {
+    return {
+      title: "WordPress blocked the request",
+      detail: sentences(`GET /wp/v2/plugins returned 403.`, hint, wpMessage),
+    };
+  }
+
+  return {
+    title: "WordPress did not see the Application Password",
+    detail: sentences(
+      "The username must be your WordPress login, not the Application Password name.",
+      hint,
+      wpMessage,
+    ),
+  };
+}
+
+function wpFault(body: string): { code: string; message: string } | null {
+  try {
+    const json = JSON.parse(body) as { code?: unknown; message?: unknown };
+    if (typeof json.code !== "string") {
+      return null;
+    }
+    return { code: json.code, message: typeof json.message === "string" ? json.message : "" };
+  } catch {
+    return null;
+  }
+}
+
+function authHeaderHint(headers: Headers): string {
+  const server = (headers.get("server") ?? "").toLowerCase();
+  const platform = (headers.get("platform") ?? "").toLowerCase();
+  if (server === "hcdn" || platform === "hostinger") {
+    return "This site is behind Hostinger CDN, which often drops the Authorization header before WordPress. In hPanel, disable CDN or exclude /wp-json.";
+  }
+  if (server.includes("cloudflare")) {
+    return "Cloudflare is in front of this site and may be dropping the Authorization header. Allow /wp-json through the WAF, or restore the header at origin.";
+  }
+  return 'This host may be dropping the Authorization header. Exclude /wp-json from the CDN, or add SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1 to .htaccess.';
+}
+
+function sentences(...parts: string[]): string {
+  return parts
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .join(" ");
 }
 
 function daysSince(raw: string | undefined, now: Date): number | null {
@@ -339,14 +428,14 @@ function finish(
   };
 }
 
-function basic(site: StoredSite): { authorization: string } {
+function basic(site: StoredSite): { authorization: string; "cache-control": string } {
   const token = Buffer.from(`${site.username}:${site.applicationPassword}`, "utf8").toString("base64");
-  return { authorization: `Basic ${token}` };
+  return { authorization: `Basic ${token}`, "cache-control": "no-store" };
 }
 
 type Hit =
   | { kind: "network"; detail: string }
-  | { kind: "http"; status: number; body: string };
+  | { kind: "http"; status: number; body: string; headers: Headers };
 
 async function read(
   deps: ScanDeps,
@@ -358,7 +447,7 @@ async function read(
   try {
     const response = await deps.fetch(url, { ...init, redirect: init.redirect ?? "manual", signal: controller.signal });
     const body = await response.text();
-    return { kind: "http", status: response.status, body };
+    return { kind: "http", status: response.status, body, headers: response.headers };
   } catch (error) {
     const detail = error instanceof Error ? error.message : "request failed";
     return { kind: "network", detail };

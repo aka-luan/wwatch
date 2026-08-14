@@ -240,6 +240,15 @@ tr.row:hover td {
   margin: 0 0 16px;
 }
 
+.error {
+  color: var(--crit);
+  margin: 0 0 12px;
+}
+
+.error:empty {
+  display: none;
+}
+
 label {
   display: block;
   margin: 0 0 10px;
