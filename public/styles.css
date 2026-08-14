@@ -414,6 +414,10 @@ a {
     min-height: 44px;
   }
 
+  .row-actions {
+    justify-content: stretch;
+  }
+
   .stats {
     padding-top: 12px;
   }
