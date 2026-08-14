@@ -1,6 +1,6 @@
 import { chmodSync, mkdirSync } from "node:fs";
 import { dirname } from "node:path";
-import { createClient, type Client, type InValue } from "@libsql/client";
+import { createClient as createWebClient, type Client, type InValue } from "@libsql/client/web";
 import {
   asScanId,
   asSiteId,
@@ -39,7 +39,7 @@ export function storeConfigFromEnv(): StoreConfig {
 }
 
 export class Store {
-  #db: Client;
+  #db!: Client;
   #ready: Promise<void>;
 
   constructor(config: StoreConfig | string) {
@@ -48,8 +48,8 @@ export class Store {
       const path = resolved.url.slice("file:".length);
       mkdirSync(dirname(path), { recursive: true });
     }
-    this.#db = createClient(resolved);
     this.#ready = this.#init(resolved);
+    this.#ready.catch(() => undefined);
   }
 
   async insertSite(site: StoredSite): Promise<Site> {
@@ -162,6 +162,7 @@ export class Store {
   }
 
   async #init(config: StoreConfig): Promise<void> {
+    this.#db = await openClient(config);
     await this.#db.executeMultiple(`
       CREATE TABLE IF NOT EXISTS sites (
         id TEXT PRIMARY KEY,
@@ -205,6 +206,21 @@ export class Store {
 
 function fileUrl(path: string): string {
   return path.startsWith("file:") ? path : `file:${path}`;
+}
+
+function clientConfig(config: StoreConfig) {
+  return {
+    url: config.url,
+    ...(config.authToken ? { authToken: config.authToken } : {}),
+  };
+}
+
+async function openClient(config: StoreConfig): Promise<Client> {
+  if (config.url.startsWith("file:")) {
+    const { createClient } = await import("@libsql/client");
+    return createClient(clientConfig(config));
+  }
+  return createWebClient(clientConfig(config));
 }
 
 function publicSite(site: StoredSite): Site {
