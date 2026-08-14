@@ -243,10 +243,12 @@ function pluginHtml(plugin, findings) {
   const next = plugin.status === "active" ? "inactive" : "active";
   return `
     <div class="plugin">
-      <strong>${escape(plugin.name)}</strong>
-      ${pill(plugin.status)}
-      ${update ? pill("warn") + " " + escape(plugin.version + " → " + update.latest) : `<span class="mono"> ${escape(plugin.version)}</span>`}
-      <p class="mono">${escape(plugin.ref)}</p>
+      <div>
+        <strong>${escape(plugin.name)}</strong>
+        ${pill(plugin.status)}
+        ${update ? pill("warn") + " " + escape(plugin.version + " → " + update.latest) : `<span class="mono"> ${escape(plugin.version)}</span>`}
+        <p class="mono">${escape(plugin.ref)}</p>
+      </div>
       <button type="button" data-plugin="${escape(plugin.ref)}" data-status="${next}">
         Set ${next}
       </button>

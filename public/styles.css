@@ -116,10 +116,7 @@ button.danger {
 }
 
 .board-wrap {
-  width: calc(100% - 2 * var(--gutter));
-  margin: 16px var(--gutter) 48px;
-  margin-left: max(var(--gutter), env(safe-area-inset-left));
-  margin-right: max(var(--gutter), env(safe-area-inset-right));
+  margin: 16px max(var(--gutter), env(safe-area-inset-right)) 48px max(var(--gutter), env(safe-area-inset-left));
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
 }
@@ -183,6 +180,7 @@ tr.row {
 
 .site-card-name {
   font-weight: 600;
+  overflow-wrap: anywhere;
 }
 
 .site-card-pills {
@@ -298,7 +296,23 @@ tr.row {
 .finding,
 .plugin {
   border-top: 1px solid var(--line);
-  padding: 10px 0;
+  padding: 12px 0;
+}
+
+.plugin {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.plugin button {
+  flex-shrink: 0;
+}
+
+.finding strong,
+.plugin strong {
+  overflow-wrap: anywhere;
 }
 
 .finding p,
@@ -426,14 +440,16 @@ a {
   .drawer {
     width: 100%;
     border-left: none;
-    padding: 16px;
-    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    padding: 20px;
+    padding-left: max(20px, env(safe-area-inset-left));
+    padding-right: max(20px, env(safe-area-inset-right));
+    padding-bottom: max(20px, env(safe-area-inset-bottom));
   }
 
   .drawer header {
     flex-wrap: wrap;
-    margin: -16px -16px 16px;
-    padding: 12px 16px;
+    margin: -20px calc(-1 * max(20px, env(safe-area-inset-right))) 16px calc(-1 * max(20px, env(safe-area-inset-left)));
+    padding: 12px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
     padding-top: max(12px, env(safe-area-inset-top));
   }
 
@@ -441,25 +457,25 @@ a {
     width: 100%;
   }
 
+  .plugin {
+    flex-wrap: wrap;
+  }
+
   .plugin button {
-    margin-top: 8px;
     min-height: 44px;
   }
 
   .modal {
-    padding: 0;
-    place-items: stretch;
+    padding: 16px;
+    padding-top: max(16px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    place-items: start stretch;
   }
 
   .card {
     width: 100%;
-    min-height: 100%;
-    min-height: 100dvh;
-    border-radius: 0;
-    border: none;
-    padding: 20px 16px;
-    padding-top: max(20px, env(safe-area-inset-top));
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
+    max-width: 440px;
+    margin-inline: auto;
   }
 
   input {
