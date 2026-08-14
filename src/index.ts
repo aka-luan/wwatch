@@ -1,5 +1,7 @@
 import { Hono } from "hono";
+import { alertConfigFromEnv } from "./alert.js";
 import { Fleet } from "./fleet.js";
+import { defaultDeps } from "./scan.js";
 import { createLocalApp } from "./server.js";
 import { Store, storeConfigFromEnv } from "./store.js";
 
@@ -26,4 +28,8 @@ const error = deployConfigError();
 
 export default error
   ? configErrorApp(error)
-  : createLocalApp(new Fleet(new Store(storeConfigFromEnv())), process.env.DASHBOARD_PASSWORD ?? "");
+  : createLocalApp(
+      new Fleet(new Store(storeConfigFromEnv()), defaultDeps, alertConfigFromEnv()),
+      process.env.DASHBOARD_PASSWORD ?? "",
+      process.env.CRON_SECRET ?? "",
+    );

@@ -154,3 +154,77 @@ test("a second Fleet on the same store sees a running job", async () => {
     throw new Error("scan did not settle");
   }
 });
+
+test("a new down finding alerts once until the site recovers and drops again", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const alerts: string[] = [];
+  let mode: "connect" | "down" | "up" = "connect";
+  const fleet = new Fleet(
+    store,
+    {
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => null,
+      fetch: async (input) => {
+        const url = String(input);
+        if (url.includes("api.telegram.org")) {
+          alerts.push(url);
+          return new Response("{}", { status: 200 });
+        }
+        if (mode === "down") {
+          throw new Error("connect ECONNREFUSED");
+        }
+        if (url.endsWith("/wp-json")) {
+          return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+        }
+        if (url.includes("/wp-json/wp/v2/plugins")) {
+          return new Response("[]", { status: 200 });
+        }
+        if (url.endsWith("/") || url.includes("bakery.example")) {
+          return new Response("<html></html>", { status: 200 });
+        }
+        return new Response("no", { status: 404 });
+      },
+    },
+    { channels: [{ kind: "telegram", token: "tok", chatId: "99" }] },
+  );
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+
+  mode = "down";
+  await fleet.startScan(site.id);
+  await settle((row) => row?.rollup === "down" && !row.running);
+  assert.equal(alerts.length, 1);
+
+  await fleet.startScan(site.id);
+  await settle((row) => row?.rollup === "down" && !row.running && Boolean(row.latest));
+  assert.equal(alerts.length, 1);
+
+  mode = "up";
+  await fleet.startScan(site.id);
+  await settle((row) => row?.rollup === "ok" && !row.running);
+  assert.equal(alerts.length, 1);
+
+  mode = "down";
+  await fleet.startScan(site.id);
+  await settle((row) => row?.rollup === "down" && !row.running);
+  assert.equal(alerts.length, 2);
+  await store.close();
+
+  async function settle(
+    ok: (row: Awaited<ReturnType<Fleet["overview"]>>[number] | undefined) => boolean,
+  ) {
+    for (let i = 0; i < 50; i += 1) {
+      const row = (await fleet.overview())[0];
+      if (ok(row)) {
+        return;
+      }
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+    throw new Error("scan did not settle");
+  }
+});
