@@ -6,6 +6,7 @@ import {
   parseOrigin,
   parsePluginRef,
   rollupOf,
+  scanSummary,
   type ConnectInput,
   type InstalledPlugin,
   type OverviewRow,
@@ -14,6 +15,7 @@ import {
   type Site,
   type SiteId,
   type SitePage,
+  type UpdateInput,
 } from "./domain.js";
 import { sendAlerts, type AlertConfig } from "./alert.js";
 import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
@@ -57,6 +59,24 @@ export class Fleet {
     await this.#store.deleteSite(id);
   }
 
+  async update(id: SiteId, input: UpdateInput): Promise<Site> {
+    const site = await this.#store.getSite(id);
+    if (!site) {
+      throw new Error("Unknown site");
+    }
+    const name = input.name !== undefined && input.name.trim() ? input.name.trim() : site.name;
+    const username = input.username !== undefined && input.username.trim() ? input.username.trim() : site.username;
+    const applicationPassword =
+      input.applicationPassword !== undefined && input.applicationPassword.trim()
+        ? input.applicationPassword.replace(/\s+/g, "")
+        : site.applicationPassword;
+    const next = { ...site, name, username, applicationPassword };
+    if (username !== site.username || applicationPassword !== site.applicationPassword) {
+      await assertConnect(next, this.#deps);
+    }
+    return this.#store.updateSite(next);
+  }
+
   overview(): Promise<OverviewRow[]> {
     return this.#store.overview();
   }
@@ -66,14 +86,29 @@ export class Fleet {
     if (!site) {
       throw new Error("Unknown site");
     }
-    const latest = await this.#store.latestScan(id);
+    const history = await this.#store.listScans(id);
+    const latest = history[0] ?? null;
     const running = await this.#store.getJob(id);
     return {
       site: { id: site.id, name: site.name, origin: site.origin },
+      username: site.username,
       latest,
       running,
       rollup: displayRollup({ latest, running }),
+      history: history.map(scanSummary),
     };
+  }
+
+  loginAllowed(ip: string): Promise<boolean> {
+    return this.#store.loginAllowed(ip);
+  }
+
+  recordLoginFailure(ip: string): Promise<void> {
+    return this.#store.recordLoginFailure(ip);
+  }
+
+  clearLoginFailures(ip: string): Promise<void> {
+    return this.#store.clearLoginFailures(ip);
   }
 
   async startScan(id: SiteId, defer: Defer = (work) => void work): Promise<{ id: ScanId }> {
