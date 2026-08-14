@@ -33,3 +33,39 @@ test("cron GET /api/scan-all needs the bearer secret when the board has a passwo
   assert.deepEqual(await cookie.json(), { started: 0 });
   await store.close();
 });
+
+test("scan-all returns 200 in Node where Hono has no ExecutionContext", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const fleet = new Fleet(store, {
+    now: () => new Date("2026-08-13T12:00:00.000Z"),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet);
+  const response = await app.request("/api/scan-all");
+  assert.equal(response.status, 200);
+  assert.deepEqual(await response.json(), { started: 1 });
+  for (let i = 0; i < 50; i += 1) {
+    const row = (await fleet.overview())[0];
+    if (row && !row.running && row.latest) {
+      await store.close();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await store.close();
+  throw new Error("scan did not finish");
+});

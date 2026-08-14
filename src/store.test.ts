@@ -46,6 +46,41 @@ test("store round-trips a site and its latest scan", async () => {
   await store.close();
 });
 
+test("latestScan prefers the later insert when finished_at ties", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const site = await store.insertSite({
+    id: asSiteId("s1"),
+    name: "Bakery",
+    origin: parseOrigin("https://bakery.example"),
+    username: "luan",
+    applicationPassword: "secret",
+  });
+  const base = {
+    siteId: site.id,
+    startedAt: "2026-08-13T10:00:00.000Z",
+    finishedAt: "2026-08-13T10:00:05.000Z",
+    coreVersion: null,
+    plugins: [] as never[],
+  };
+  await store.insertScan({
+    ...base,
+    id: asScanId("c1"),
+    rollup: "down",
+    findings: [{ kind: "down", severity: "crit", title: "down", detail: "" }],
+  });
+  await store.insertScan({
+    ...base,
+    id: asScanId("c2"),
+    rollup: "ok",
+    findings: [],
+  });
+  const latest = await store.latestScan(site.id);
+  assert.equal(latest?.id, "c2");
+  assert.equal(latest?.rollup, "ok");
+  await store.close();
+});
+
 test("remote Turso URLs do not load the native libsql addon", async () => {
   const store = new Store({ url: "http://127.0.0.1:1", authToken: "token" });
   await assert.rejects(() => store.listSites(), (error: unknown) => {

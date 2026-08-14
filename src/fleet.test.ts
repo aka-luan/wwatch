@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
+import { asSiteId } from "./domain.js";
 import { Store } from "./store.js";
 
 test("connect rejects a duplicate origin and startScan is idempotent while running", async () => {
@@ -160,10 +161,14 @@ test("a new down finding alerts once until the site recovers and drops again", a
   const store = new Store(join(dir, "watch.db"));
   const alerts: string[] = [];
   let mode: "connect" | "down" | "up" = "connect";
+  let nowMs = Date.parse("2026-08-13T12:00:00.000Z");
   const fleet = new Fleet(
     store,
     {
-      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      now: () => {
+        nowMs += 1000;
+        return new Date(nowMs);
+      },
       tlsDaysLeft: async () => null,
       fetch: async (input) => {
         const url = String(input);
@@ -196,35 +201,37 @@ test("a new down finding alerts once until the site recovers and drops again", a
   });
 
   mode = "down";
-  await fleet.startScan(site.id);
-  await settle((row) => row?.rollup === "down" && !row.running);
+  const first = await scanUntil(site.id, (row) => row.rollup === "down");
   assert.equal(alerts.length, 1);
+  assert.equal(first.latest?.findings[0]?.kind, "down");
 
-  await fleet.startScan(site.id);
-  await settle((row) => row?.rollup === "down" && !row.running && Boolean(row.latest));
+  await scanUntil(site.id, (row) => row.rollup === "down");
   assert.equal(alerts.length, 1);
 
   mode = "up";
-  await fleet.startScan(site.id);
-  await settle((row) => row?.rollup === "ok" && !row.running);
+  const recovered = await scanUntil(site.id, (row) => row.rollup === "ok");
   assert.equal(alerts.length, 1);
+  assert.equal(recovered.latest?.findings.length, 0);
 
   mode = "down";
-  await fleet.startScan(site.id);
-  await settle((row) => row?.rollup === "down" && !row.running);
+  await scanUntil(site.id, (row) => row.rollup === "down");
   assert.equal(alerts.length, 2);
   await store.close();
 
-  async function settle(
-    ok: (row: Awaited<ReturnType<Fleet["overview"]>>[number] | undefined) => boolean,
+  async function scanUntil(
+    id: string,
+    ok: (row: NonNullable<Awaited<ReturnType<Fleet["overview"]>>[number]>) => boolean,
   ) {
+    const previousId = (await fleet.sitePage(asSiteId(id)))?.latest?.id;
+    await fleet.startScan(asSiteId(id));
     for (let i = 0; i < 50; i += 1) {
       const row = (await fleet.overview())[0];
-      if (ok(row)) {
-        return;
+      if (row && !row.running && row.latest && row.latest.id !== previousId && ok(row)) {
+        return row;
       }
       await new Promise((resolve) => setTimeout(resolve, 20));
     }
-    throw new Error("scan did not settle");
+    const row = (await fleet.overview())[0];
+    throw new Error(`scan did not settle (${row?.rollup}): ${JSON.stringify(row?.latest?.findings)}`);
   }
 });

@@ -120,11 +120,11 @@ function isCronScanAll(
 
 function deferFrom(c: { executionCtx?: { waitUntil?: (work: Promise<unknown>) => void } }) {
   return (work: Promise<unknown>) => {
-    if (c.executionCtx?.waitUntil) {
-      c.executionCtx.waitUntil(work);
-      return;
+    try {
+      c.executionCtx?.waitUntil?.(work);
+    } catch {
+      void work;
     }
-    void work;
   };
 }
 
