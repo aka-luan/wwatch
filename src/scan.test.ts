@@ -84,6 +84,60 @@ test("runScan records plugin updates, broken links, and exposed paths", async ()
   assert.equal(snapshot.rollup, "degraded");
 });
 
+test("runScan overlaps independent origin probes", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, `<meta name="generator" content="WordPress 6.7.1" /><a href="/ok">ok</a>`);
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2"] });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp-site-health/")) {
+      json(res, url.includes("plugins") ? [] : { status: "good", label: "ok", description: "" });
+      return;
+    }
+    if (url === "/ok") {
+      html(res, "ok");
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  let inflight = 0;
+  let max = 0;
+  const origin = `http://127.0.0.1:${portOf(server)}`;
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-overlap"),
+      name: "Overlap",
+      origin: parseOrigin(origin),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    {
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+      fetch: async (input, init) => {
+        const url = String(input);
+        if (url.includes("api.wordpress.org")) {
+          return new Response("{}", { status: 404 });
+        }
+        inflight += 1;
+        max = Math.max(max, inflight);
+        await new Promise((resolve) => setTimeout(resolve, 25));
+        inflight -= 1;
+        return globalThis.fetch(input, init);
+      },
+    },
+  );
+  server.close();
+  assert.ok(max > 1, `expected overlapping origin fetches, max was ${max}`);
+  assert.equal(snapshot.coreVersion, "6.7.1");
+});
+
 test("runScan marks a dead origin as down", async () => {
   const snapshot = await runScan(
     {

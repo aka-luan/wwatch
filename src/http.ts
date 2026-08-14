@@ -136,9 +136,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
     if (dashboardPassword && c.req.method === "GET" && !isCronScanAll(c, cronSecret)) {
       return c.json({ error: "auth required" }, 401);
     }
-    const rows = await fleet.overview();
-    const started = await Promise.all(rows.map((row) => fleet.startScan(row.site.id, deferFrom(c))));
-    return c.json({ started: started.length });
+    return c.json(await fleet.scanAll(deferFrom(c)));
   });
 
   app.post("/api/sites/:id/plugins", async (c) => {
@@ -193,11 +191,18 @@ function isCronScanAll(
   return secretsEqual(header, `Bearer ${cronSecret}`);
 }
 
-function deferFrom(c: { executionCtx?: { waitUntil?: (work: Promise<unknown>) => void } }) {
+export function deferFrom(c: { executionCtx?: { waitUntil?: (work: Promise<unknown>) => void } }) {
   return (work: Promise<unknown>) => {
+    let deferred = false;
     try {
-      c.executionCtx?.waitUntil?.(work);
+      const waitUntil = c.executionCtx?.waitUntil;
+      if (typeof waitUntil === "function") {
+        waitUntil.call(c.executionCtx, work);
+        deferred = true;
+      }
     } catch {
+    }
+    if (!deferred) {
       void work;
     }
   };
