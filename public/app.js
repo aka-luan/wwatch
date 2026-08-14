@@ -148,6 +148,11 @@ function renderDrawer(row) {
   });
   for (const button of drawer.querySelectorAll("[data-plugin]")) {
     button.addEventListener("click", async () => {
+      const name = button.dataset.name ?? button.dataset.plugin;
+      const status = button.dataset.status;
+      if (!confirm(`Set ${name} to ${status}?`)) {
+        return;
+      }
       await api(`/api/sites/${row.site.id}/plugins`, {
         method: "POST",
         headers: { "content-type": "application/json" },
@@ -180,7 +185,7 @@ function pluginHtml(plugin, findings) {
       ${pill(plugin.status)}
       ${update ? pill("warn") + " " + escape(plugin.version + " → " + update.latest) : `<span class="mono"> ${escape(plugin.version)}</span>`}
       <p class="mono">${escape(plugin.ref)}</p>
-      <button type="button" data-plugin="${escape(plugin.ref)}" data-status="${next}">
+      <button type="button" data-plugin="${escape(plugin.ref)}" data-name="${escape(plugin.name)}" data-status="${next}">
         Set ${next}
       </button>
     </div>`;

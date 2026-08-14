@@ -33,6 +33,13 @@ const git: Finding = {
   detail: "https://bakery.example/.git/HEAD returned 200",
   path: "/.git/HEAD",
 };
+const debugLog: Finding = {
+  kind: "exposed_path",
+  severity: "crit",
+  title: "debug.log is public",
+  detail: "https://bakery.example/debug.log returned 200",
+  path: "/debug.log",
+};
 const readme: Finding = {
   kind: "exposed_path",
   severity: "info",
@@ -50,11 +57,12 @@ const plugin: Finding = {
   latest: "1.2",
 };
 
-test("only down, auth failure, and backup wp-config are alertable", () => {
+test("only down, auth failure, and crit exposed paths are alertable", () => {
   assert.equal(isAlertable(down), true);
   assert.equal(isAlertable(auth), true);
   assert.equal(isAlertable(bak), true);
-  assert.equal(isAlertable(git), false);
+  assert.equal(isAlertable(git), true);
+  assert.equal(isAlertable(debugLog), true);
   assert.equal(isAlertable(readme), false);
   assert.equal(isAlertable(plugin), false);
 });
@@ -68,6 +76,7 @@ test("newCrits alerts the first time, not while the same finding stays", () => {
 
 test("a new backup wp-config path is a new crit even if another backup was already public", () => {
   assert.deepEqual(newCrits([bak], [bak, save]), [save]);
+  assert.deepEqual(newCrits([bak], [bak, git, debugLog]), [git, debugLog]);
 });
 
 test("alert copy names the site and stacks each new finding", () => {
