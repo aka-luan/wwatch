@@ -16,6 +16,7 @@ import type { StoredSite } from "./store.js";
 
 const TIMEOUT_MS = 10_000;
 const LINK_CAP = 20;
+const PROBE_CONCURRENCY = 8;
 const HEALTH_TESTS = [
   "background-updates",
   "loopback-requests",
@@ -35,10 +36,29 @@ const EXPOSED_PATHS: Array<{ path: string; severity: Finding["severity"]; title:
   { path: "/license.txt", severity: "info", title: "license.txt is public" },
 ];
 
+export type OrgPluginInfo = {
+  slug: string;
+  latest: string | null;
+  closed: boolean;
+  missing: boolean;
+  detail: string;
+  daysSinceUpdate: number | null;
+};
+
+export type OrgCache = {
+  plugins: Map<string, Promise<OrgPluginInfo>>;
+  core: Promise<string | null> | null;
+};
+
+export function createOrgCache(): OrgCache {
+  return { plugins: new Map(), core: null };
+}
+
 export type ScanDeps = {
   fetch: typeof fetch;
   now: () => Date;
   tlsDaysLeft: (host: string, port: number) => Promise<number | null>;
+  orgCache?: OrgCache;
 };
 
 export const defaultDeps: ScanDeps = {
@@ -185,78 +205,92 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
         });
       }
     }
+  }
+
+  const probes: Array<() => Promise<void>> = [];
+  if (auth.kind === "http" && auth.status === 200) {
     for (const test of HEALTH_TESTS) {
-      const health = await read(deps, `${site.origin}/wp-json/wp-site-health/v1/tests/${test}`, {
-        headers: basic(site),
-      });
-      if (health.kind === "http" && health.status === 200) {
-        const parsed = parseHealth(health.body);
-        if (parsed && parsed.result !== "good") {
-          findings.push({
-            kind: "site_health",
-            severity: parsed.result === "critical" ? "crit" : "warn",
-            title: parsed.label,
-            detail: stripTags(parsed.description),
-            test,
-            result: parsed.result,
-          });
+      probes.push(async () => {
+        const health = await read(deps, `${site.origin}/wp-json/wp-site-health/v1/tests/${test}`, {
+          headers: basic(site),
+        });
+        if (health.kind === "http" && health.status === 200) {
+          const parsed = parseHealth(health.body);
+          if (parsed && parsed.result !== "good") {
+            findings.push({
+              kind: "site_health",
+              severity: parsed.result === "critical" ? "crit" : "warn",
+              title: parsed.label,
+              detail: stripTags(parsed.description),
+              test,
+              result: parsed.result,
+            });
+          }
         }
-      }
+      });
     }
   }
 
   if (home.kind === "http") {
     const links = extractSameOriginLinks(site.origin, home.body).slice(0, LINK_CAP);
     for (const href of links) {
-      const hit = await read(deps, href, { method: "GET" });
-      if (hit.kind === "network") {
-        findings.push({
-          kind: "broken_link",
-          severity: "warn",
-          title: "Broken link",
-          detail: hit.detail,
-          url: href,
-          httpStatus: null,
-        });
-      } else if (hit.status >= 400) {
-        findings.push({
-          kind: "broken_link",
-          severity: "warn",
-          title: `Broken link (${hit.status})`,
-          detail: href,
-          url: href,
-          httpStatus: hit.status,
-        });
-      }
-    }
-  }
-
-  for (const probe of EXPOSED_PATHS) {
-    const hit = await read(deps, site.origin + probe.path);
-    if (hit.kind === "http" && hit.status === 200 && looksLikeFile(hit.body, probe.path)) {
-      findings.push({
-        kind: "exposed_path",
-        severity: probe.severity,
-        title: probe.title,
-        detail: `${site.origin}${probe.path} returned 200`,
-        path: probe.path,
+      probes.push(async () => {
+        const hit = await read(deps, href, { method: "GET" });
+        if (hit.kind === "network") {
+          findings.push({
+            kind: "broken_link",
+            severity: "warn",
+            title: "Broken link",
+            detail: hit.detail,
+            url: href,
+            httpStatus: null,
+          });
+        } else if (hit.status >= 400) {
+          findings.push({
+            kind: "broken_link",
+            severity: "warn",
+            title: `Broken link (${hit.status})`,
+            detail: href,
+            url: href,
+            httpStatus: hit.status,
+          });
+        }
       });
     }
   }
 
-  const xmlrpc = await read(deps, site.origin + "/xmlrpc.php", {
-    method: "POST",
-    headers: { "content-type": "text/xml" },
-    body: "<methodCall><methodName>system.listMethods</methodName></methodCall>",
-  });
-  if (xmlrpc.kind === "http" && xmlrpc.status === 200 && xmlrpc.body.includes("methodResponse")) {
-    findings.push({
-      kind: "xmlrpc_open",
-      severity: "info",
-      title: "xmlrpc.php accepts requests",
-      detail: "Disable XML-RPC if you do not use it",
+  for (const probe of EXPOSED_PATHS) {
+    probes.push(async () => {
+      const hit = await read(deps, site.origin + probe.path);
+      if (hit.kind === "http" && hit.status === 200 && looksLikeFile(hit.body, probe.path)) {
+        findings.push({
+          kind: "exposed_path",
+          severity: probe.severity,
+          title: probe.title,
+          detail: `${site.origin}${probe.path} returned 200`,
+          path: probe.path,
+        });
+      }
     });
   }
+
+  probes.push(async () => {
+    const xmlrpc = await read(deps, site.origin + "/xmlrpc.php", {
+      method: "POST",
+      headers: { "content-type": "text/xml" },
+      body: "<methodCall><methodName>system.listMethods</methodName></methodCall>",
+    });
+    if (xmlrpc.kind === "http" && xmlrpc.status === 200 && xmlrpc.body.includes("methodResponse")) {
+      findings.push({
+        kind: "xmlrpc_open",
+        severity: "info",
+        title: "xmlrpc.php accepts requests",
+        detail: "Disable XML-RPC if you do not use it",
+      });
+    }
+  });
+
+  await mapPool(probes, PROBE_CONCURRENCY, (run) => run());
 
   return finish(id, site.id, startedAt, deps.now(), findings, coreVersion, plugins);
 }
@@ -535,17 +569,18 @@ function parsePlugins(body: string): InstalledPlugin[] {
   return out;
 }
 
-async function orgPlugin(
-  deps: ScanDeps,
-  slug: string,
-): Promise<{
-  slug: string;
-  latest: string | null;
-  closed: boolean;
-  missing: boolean;
-  detail: string;
-  daysSinceUpdate: number | null;
-}> {
+async function orgPlugin(deps: ScanDeps, slug: string): Promise<OrgPluginInfo> {
+  const cache = deps.orgCache?.plugins;
+  const cached = cache?.get(slug);
+  if (cached) {
+    return cached;
+  }
+  const pending = loadOrgPlugin(deps, slug);
+  cache?.set(slug, pending);
+  return pending;
+}
+
+async function loadOrgPlugin(deps: ScanDeps, slug: string): Promise<OrgPluginInfo> {
   const url = `https://api.wordpress.org/plugins/info/1.2/?action=plugin_information&request[slug]=${encodeURIComponent(slug)}`;
   const hit = await read(deps, url);
   if (hit.kind === "network" || hit.status === 404) {
@@ -582,6 +617,17 @@ async function orgPlugin(
 }
 
 async function orgCore(deps: ScanDeps): Promise<string | null> {
+  const cache = deps.orgCache;
+  if (cache) {
+    if (!cache.core) {
+      cache.core = loadOrgCore(deps);
+    }
+    return cache.core;
+  }
+  return loadOrgCore(deps);
+}
+
+async function loadOrgCore(deps: ScanDeps): Promise<string | null> {
   const hit = await read(deps, "https://api.wordpress.org/core/version-check/1.7/");
   if (hit.kind !== "http" || hit.status !== 200) {
     return null;
@@ -593,6 +639,24 @@ async function orgCore(deps: ScanDeps): Promise<string | null> {
   } catch {
     return null;
   }
+}
+
+async function mapPool<T>(items: T[], concurrency: number, fn: (item: T) => Promise<void>): Promise<void> {
+  if (items.length === 0) {
+    return;
+  }
+  let next = 0;
+  const workers = Array.from({ length: Math.min(concurrency, items.length) }, async () => {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      const item = items[index];
+      if (item !== undefined) {
+        await fn(item);
+      }
+    }
+  });
+  await Promise.all(workers);
 }
 
 function parseHealth(body: string): { result: "good" | "recommended" | "critical"; label: string; description: string } | null {

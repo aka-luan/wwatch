@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
-import { createApp, SESSION_TTL_MS, sessionToken } from "./http.js";
+import { createApp, deferFrom, SESSION_TTL_MS, sessionToken } from "./http.js";
 import { Store } from "./store.js";
 
 test("cron GET /api/scan-all needs the bearer secret when the board has a password", async () => {
@@ -215,6 +215,40 @@ test("scan-all returns 200 in Node where Hono has no ExecutionContext", async ()
   }
   await store.close();
   throw new Error("scan did not finish");
+});
+
+test("deferFrom runs work when waitUntil is missing or executionCtx throws", async () => {
+  let ran = 0;
+  const missing = Promise.resolve().then(() => {
+    ran += 1;
+  });
+  deferFrom({})(missing);
+  await missing;
+  assert.equal(ran, 1);
+
+  const thrown = Promise.resolve().then(() => {
+    ran += 1;
+  });
+  const c = {};
+  Object.defineProperty(c, "executionCtx", {
+    get() {
+      throw new Error("This context has no ExecutionContext");
+    },
+  });
+  deferFrom(c)(thrown);
+  await thrown;
+  assert.equal(ran, 2);
+
+  let waited = false;
+  deferFrom({
+    executionCtx: {
+      waitUntil(work) {
+        waited = true;
+        void work;
+      },
+    },
+  })(Promise.resolve());
+  assert.equal(waited, true);
 });
 
 async function loginCookie(app: ReturnType<typeof createApp>, password: string): Promise<string> {

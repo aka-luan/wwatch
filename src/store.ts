@@ -27,7 +27,7 @@ export type StoreConfig = {
   wrapSecret?: string;
 };
 
-const STALE_JOB_MS = 3 * 60 * 1000;
+export const STALE_JOB_MS = 3 * 60 * 1000;
 export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
 export const LOGIN_MAX_FAILURES = 10;
 const HISTORY_LIMIT = 10;
@@ -166,6 +166,24 @@ export class Store {
   async deleteJob(siteId: SiteId): Promise<void> {
     await this.#ready;
     await this.#db.execute({ sql: `DELETE FROM jobs WHERE site_id = ?`, args: [siteId] });
+  }
+
+  async listStaleJobs(): Promise<Array<{ siteId: SiteId; id: ScanId; startedAt: string }>> {
+    await this.#ready;
+    const result = await this.#db.execute(`SELECT site_id, id, started_at FROM jobs`);
+    const out: Array<{ siteId: SiteId; id: ScanId; startedAt: string }> = [];
+    for (const row of result.rows) {
+      const rec = asRecord(row);
+      const startedAt = text(rec, "started_at");
+      if (Date.now() - Date.parse(startedAt) > STALE_JOB_MS) {
+        out.push({
+          siteId: asSiteId(text(rec, "site_id")),
+          id: asScanId(text(rec, "id")),
+          startedAt,
+        });
+      }
+    }
+    return out;
   }
 
   async loginAllowed(ip: string): Promise<boolean> {

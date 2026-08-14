@@ -69,7 +69,9 @@ wwatch starts a scan as soon as the site is added. To rename a site or rotate th
 - Whether `xmlrpc.php` accepts a method call
 - TLS days left, on HTTPS origins
 
-A scan is a snapshot. The site row shows the latest finished snapshot. The drawer lists earlier scans (rollup, time, finding counts). A running scan does not rewrite that row until it finishes.
+Health tests, homepage links, exposed paths, and xmlrpc run concurrently, capped at 8 in-flight requests to the site. **Scan all** shares wordpress.org plugin and core lookups for that run so ten sites with Akismet do not hit the directory ten times.
+
+A scan is a snapshot. The site row shows the latest finished snapshot. The drawer lists earlier scans (rollup, time, finding counts). A running scan does not rewrite that row until it finishes. If the process dies mid-scan (Vercel's 60 second cap), the next load records **Scan did not finish** instead of keeping the previous snapshot with a stuck job.
 
 Vercel hits `GET /api/scan-all` every day at 06:00 UTC. That is the same route as **Scan all**. Hobby only allows a daily cron, which is the interval this board needs. Without the cron, the board stays on the last scan you started by hand.
 

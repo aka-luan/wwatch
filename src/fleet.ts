@@ -18,7 +18,7 @@ import {
   type UpdateInput,
 } from "./domain.js";
 import { sendAlerts, type AlertConfig } from "./alert.js";
-import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
+import { assertConnect, createOrgCache, defaultDeps, runScan, setPluginStatus, type OrgCache, type ScanDeps } from "./scan.js";
 import { Store, type StoredSite } from "./store.js";
 
 export type Defer = (work: Promise<unknown>) => void;
@@ -78,10 +78,11 @@ export class Fleet {
   }
 
   overview(): Promise<OverviewRow[]> {
-    return this.#store.overview();
+    return this.#withFreshJobs(() => this.#store.overview());
   }
 
   async sitePage(id: SiteId): Promise<SitePage> {
+    await this.#reapStale();
     const site = await this.#store.getSite(id);
     if (!site) {
       throw new Error("Unknown site");
@@ -111,7 +112,20 @@ export class Fleet {
     return this.#store.clearLoginFailures(ip);
   }
 
-  async startScan(id: SiteId, defer: Defer = (work) => void work): Promise<{ id: ScanId }> {
+  async startScan(id: SiteId, defer: Defer = (work) => void work, orgCache?: OrgCache): Promise<{ id: ScanId }> {
+    await this.#reapStale();
+    return this.#enqueue(id, defer, orgCache);
+  }
+
+  async scanAll(defer: Defer = (work) => void work): Promise<{ started: number }> {
+    await this.#reapStale();
+    const cache = createOrgCache();
+    const rows = await this.#store.overview();
+    const started = await Promise.all(rows.map((row) => this.#enqueue(row.site.id, defer, cache)));
+    return { started: started.length };
+  }
+
+  async #enqueue(id: SiteId, defer: Defer, orgCache?: OrgCache): Promise<{ id: ScanId }> {
     const current = await this.#store.getJob(id);
     if (current) {
       return { id: current.id };
@@ -122,7 +136,7 @@ export class Fleet {
     }
     const job = { id: asScanId(randomUUID()), startedAt: new Date().toISOString() };
     await this.#store.putJob(id, job);
-    defer(this.#run(site));
+    defer(this.#run(site, orgCache));
     return { id: job.id };
   }
 
@@ -138,9 +152,10 @@ export class Fleet {
     return setPluginStatus(site, parsePluginRef(input.plugin), input.status, this.#deps);
   }
 
-  async #run(site: StoredSite): Promise<void> {
+  async #run(site: StoredSite, orgCache?: OrgCache): Promise<void> {
+    const deps = orgCache ? { ...this.#deps, orgCache } : this.#deps;
     try {
-      await this.#record(site, await runScan(site, this.#deps));
+      await this.#record(site, await runScan(site, deps));
     } catch (error) {
       const detail = error instanceof Error ? error.message : "scan failed";
       const now = this.#deps.now().toISOString();
@@ -159,6 +174,40 @@ export class Fleet {
       });
     } finally {
       await this.#store.deleteJob(site.id);
+    }
+  }
+
+  async #withFreshJobs<T>(fn: () => Promise<T>): Promise<T> {
+    await this.#reapStale();
+    return fn();
+  }
+
+  async #reapStale(): Promise<void> {
+    const stale = await this.#store.listStaleJobs();
+    for (const job of stale) {
+      const site = await this.#store.getSite(job.siteId);
+      if (site) {
+        const now = this.#deps.now().toISOString();
+        const findings = [
+          {
+            kind: "down" as const,
+            severity: "crit" as const,
+            title: "Scan did not finish",
+            detail: "The process stopped before this scan wrote a snapshot. Start another scan.",
+          },
+        ];
+        await this.#record(site, {
+          id: job.id,
+          siteId: site.id,
+          startedAt: job.startedAt,
+          finishedAt: now,
+          rollup: rollupOf(findings),
+          coreVersion: null,
+          plugins: [],
+          findings,
+        });
+      }
+      await this.#store.deleteJob(job.siteId);
     }
   }
 

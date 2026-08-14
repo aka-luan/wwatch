@@ -4,8 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
-import { asScanId, asSiteId } from "./domain.js";
-import { Store } from "./store.js";
+import { asScanId, asSiteId, parseOrigin } from "./domain.js";
+import { Store, STALE_JOB_MS } from "./store.js";
 
 test("connect rejects a duplicate origin and startScan is idempotent while running", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
@@ -349,5 +349,92 @@ test("sitePage lists earlier scans newest first", async () => {
   assert.equal(page.history[0]?.id, "c2");
   assert.equal(page.history[1]?.id, "c1");
   assert.equal(page.history[1]?.counts.crit, 1);
+  await store.close();
+});
+
+test("scanAll shares wordpress.org lookups across sites", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  let pluginInfo = 0;
+  let coreInfo = 0;
+  const fleet = new Fleet(store, {
+    now: () => new Date("2026-08-13T12:00:00.000Z"),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.includes("api.wordpress.org/plugins/info")) {
+        pluginInfo += 1;
+        return new Response(JSON.stringify({ version: "1.2.0", last_updated: "2018-01-01" }), { status: 200 });
+      }
+      if (url.includes("api.wordpress.org/core/version-check")) {
+        coreInfo += 1;
+        return new Response(JSON.stringify({ offers: [{ current: "6.7.1" }] }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (url.includes("/wp-json/wp/v2/plugins")) {
+        return new Response(
+          JSON.stringify([{ plugin: "akismet/akismet.php", name: "Akismet", version: "1.0.0", status: "active" }]),
+          { status: 200 },
+        );
+      }
+      if (url.endsWith("/") || url.includes("example")) {
+        return new Response(`<meta name="generator" content="WordPress 6.4.2" />`, { status: 200 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  await fleet.connect({
+    name: "Shop",
+    origin: "https://shop.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  assert.equal((await fleet.scanAll()).started, 2);
+  for (let i = 0; i < 50; i += 1) {
+    const rows = await fleet.overview();
+    if (rows.length === 2 && rows.every((row) => row.latest && !row.running)) {
+      assert.equal(pluginInfo, 1);
+      assert.equal(coreInfo, 1);
+      await store.close();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await store.close();
+  throw new Error("scans did not finish");
+});
+
+test("a stale job is recorded as Scan did not finish instead of dropped", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const fleet = new Fleet(store, {
+    now: () => new Date("2026-08-13T12:00:00.000Z"),
+    tlsDaysLeft: async () => null,
+    fetch: async () => new Response("[]", { status: 200 }),
+  });
+  const site = await store.insertSite({
+    id: asSiteId("s-stale"),
+    name: "Bakery",
+    origin: parseOrigin("https://bakery.example"),
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  await store.putJob(site.id, {
+    id: asScanId("job-stale"),
+    startedAt: new Date(Date.now() - STALE_JOB_MS - 1000).toISOString(),
+  });
+  const row = (await fleet.overview())[0];
+  assert.equal(row?.running, null);
+  assert.equal(row?.latest?.id, "job-stale");
+  assert.equal(row?.latest?.findings[0]?.title, "Scan did not finish");
+  assert.equal(await store.getJob(site.id), null);
   await store.close();
 });
