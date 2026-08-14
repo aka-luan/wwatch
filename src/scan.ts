@@ -171,6 +171,33 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
         });
       }
     }
+    const themesHit = await read(deps, `${site.origin}/wp-json/wp/v2/themes`, {
+      headers: basic(site),
+    });
+    if (themesHit.kind === "http" && themesHit.status === 200) {
+      const themes = parseThemes(themesHit.body);
+      const orgThemes = await Promise.all(themes.map((theme) => orgTheme(deps, theme.stylesheet)));
+      for (const theme of themes) {
+        const info = orgThemes.find((item) => item.slug === theme.stylesheet);
+        if (!info?.latest) {
+          continue;
+        }
+        if (compareVersions(theme.version, info.latest) === "behind") {
+          findings.push({
+            kind: "theme_update",
+            severity: "warn",
+            title: `${theme.name} ${theme.version} → ${info.latest}`,
+            detail: `${theme.stylesheet} is behind the directory version`,
+            theme: theme.stylesheet,
+            installed: theme.version,
+            latest: info.latest,
+          });
+        }
+      }
+    }
+    if (!coreVersion) {
+      coreVersion = await coreVersionFromSiteHealth(deps, site, findings);
+    }
     if (coreVersion) {
       const latestCore = await orgCore(deps);
       if (latestCore && compareVersions(coreVersion, latestCore) === "behind") {
@@ -499,6 +526,106 @@ function generatorVersion(html: string): string | null {
   return alt?.[1] ?? null;
 }
 
+async function coreVersionFromSiteHealth(
+  deps: ScanDeps,
+  site: StoredSite,
+  findings: Finding[],
+): Promise<string | null> {
+  const health = await read(deps, `${site.origin}/wp-json/wp-site-health/v1/tests/wordpress-version`, {
+    headers: basic(site),
+  });
+  if (health.kind !== "http" || health.status !== 200) {
+    return null;
+  }
+  const version = coreVersionFromHealth(health.body);
+  if (version) {
+    return version;
+  }
+  const parsed = parseHealth(health.body);
+  if (parsed && parsed.result !== "good") {
+    findings.push({
+      kind: "site_health",
+      severity: parsed.result === "critical" ? "crit" : "warn",
+      title: parsed.label,
+      detail: stripTags(parsed.description),
+      test: "wordpress-version",
+      result: parsed.result,
+    });
+  }
+  return null;
+}
+
+function coreVersionFromHealth(body: string): string | null {
+  const parsed = parseHealth(body);
+  if (!parsed) {
+    return null;
+  }
+  const text = `${parsed.label} ${stripTags(parsed.description)}`;
+  const running = text.match(/currently running version\s+(\d+(?:\.\d+)*)/i);
+  if (running?.[1]) {
+    return running[1];
+  }
+  if (parsed.result === "critical") {
+    return null;
+  }
+  const paren = parsed.label.match(/\((\d+(?:\.\d+)*)\)/);
+  if (paren?.[1]) {
+    return paren[1];
+  }
+  const named = parsed.label.match(/WordPress version\s+(\d+(?:\.\d+)*)/i);
+  return named?.[1] ?? null;
+}
+
+function parseThemes(body: string): Array<{ stylesheet: string; name: string; version: string }> {
+  let raw: unknown;
+  try {
+    raw = JSON.parse(body);
+  } catch {
+    return [];
+  }
+  if (!Array.isArray(raw)) {
+    return [];
+  }
+  const out: Array<{ stylesheet: string; name: string; version: string }> = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") {
+      continue;
+    }
+    const rec = item as Record<string, unknown>;
+    const stylesheet = typeof rec.stylesheet === "string" ? rec.stylesheet.trim() : "";
+    if (!stylesheet || stylesheet.includes("/") || stylesheet.includes("..")) {
+      continue;
+    }
+    const version = wpText(rec.version);
+    if (!version) {
+      continue;
+    }
+    out.push({
+      stylesheet,
+      name: wpText(rec.name) ?? stylesheet,
+      version,
+    });
+  }
+  return out;
+}
+
+function wpText(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) {
+    return value.trim();
+  }
+  if (!value || typeof value !== "object") {
+    return null;
+  }
+  const rec = value as Record<string, unknown>;
+  if (typeof rec.raw === "string" && rec.raw.trim()) {
+    return rec.raw.trim();
+  }
+  if (typeof rec.rendered === "string" && rec.rendered.trim()) {
+    return rec.rendered.trim();
+  }
+  return null;
+}
+
 function parsePlugins(body: string): InstalledPlugin[] {
   let raw: unknown;
   try {
@@ -578,6 +705,26 @@ async function orgPlugin(
       detail: "unreadable directory response",
       daysSinceUpdate: null,
     };
+  }
+}
+
+async function orgTheme(
+  deps: ScanDeps,
+  slug: string,
+): Promise<{ slug: string; latest: string | null }> {
+  const url = `https://api.wordpress.org/themes/info/1.2/?action=theme_information&request[slug]=${encodeURIComponent(slug)}`;
+  const hit = await read(deps, url);
+  if (hit.kind === "network" || hit.status === 404) {
+    return { slug, latest: null };
+  }
+  try {
+    const json = JSON.parse(hit.body) as { version?: string; error?: string } | false;
+    if (!json || json.error || typeof json.version !== "string") {
+      return { slug, latest: null };
+    }
+    return { slug, latest: json.version };
+  } catch {
+    return { slug, latest: null };
   }
 }
 

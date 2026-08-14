@@ -31,6 +31,17 @@ test("runScan records plugin updates, broken links, and exposed paths", async ()
       ]);
       return;
     }
+    if (url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, [
+        {
+          stylesheet: "twentytwentyfour",
+          name: { raw: "Twenty Twenty-Four", rendered: "Twenty Twenty-Four" },
+          version: { raw: "1.0", rendered: "1.0" },
+          status: "active",
+        },
+      ]);
+      return;
+    }
     if (url.startsWith("/wp-json/wp-site-health/v1/tests/https-status")) {
       json(res, { status: "recommended", label: "HTTPS could be better", description: "<p>Fix TLS</p>" });
       return;
@@ -77,6 +88,7 @@ test("runScan records plugin updates, broken links, and exposed paths", async ()
   assert.equal(snapshot.plugins[0]?.slug, "akismet");
   assert.ok(snapshot.findings.some((f) => f.kind === "plugin_update" && f.latest === "1.2.0"));
   assert.ok(snapshot.findings.some((f) => f.kind === "plugin_stale"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "theme_update" && f.latest === "1.3"));
   assert.ok(snapshot.findings.some((f) => f.kind === "core_update" && f.latest === "6.7.1"));
   assert.ok(snapshot.findings.some((f) => f.kind === "broken_link" && f.httpStatus === 404));
   assert.ok(snapshot.findings.some((f) => f.kind === "exposed_path" && f.path === "/readme.html"));
@@ -103,6 +115,166 @@ test("runScan marks a dead origin as down", async () => {
   );
   assert.equal(snapshot.rollup, "down");
   assert.equal(snapshot.findings[0]?.kind, "down");
+});
+
+test("runScan reads core version from Site Health when the generator tag is missing", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, "<html><body>no generator</body></html>");
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2"] });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, []);
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/wordpress-version")) {
+      json(res, {
+        status: "good",
+        label: "Your version of WordPress (6.4.2) is up to date",
+        description: "<p>You are currently running the latest version of WordPress available.</p>",
+      });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/")) {
+      json(res, { status: "good", label: "ok", description: "" });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  const origin = `http://127.0.0.1:${portOf(server)}`;
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-health-core"),
+      name: "Hidden",
+      origin: parseOrigin(origin),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    fakeOrg({
+      fetch: globalThis.fetch,
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+    }),
+  );
+  server.close();
+  assert.equal(snapshot.coreVersion, "6.4.2");
+  assert.ok(snapshot.findings.some((f) => f.kind === "core_update" && f.installed === "6.4.2" && f.latest === "6.7.1"));
+  assert.equal(
+    snapshot.findings.some((f) => f.kind === "site_health" && f.test === "wordpress-version"),
+    false,
+  );
+});
+
+test("runScan keeps the Site Health wordpress-version finding when the installed version is not in the copy", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, "<html></html>");
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2"] });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, []);
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/wordpress-version")) {
+      json(res, {
+        status: "critical",
+        label: "WordPress update available (6.7.1)",
+        description: "<p>A new version of WordPress is available.</p>",
+      });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/")) {
+      json(res, { status: "good", label: "ok", description: "" });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-health-unparsed"),
+      name: "Hidden",
+      origin: parseOrigin(`http://127.0.0.1:${portOf(server)}`),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    fakeOrg({
+      fetch: globalThis.fetch,
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+    }),
+  );
+  server.close();
+  assert.equal(snapshot.coreVersion, null);
+  assert.equal(
+    snapshot.findings.some((f) => f.kind === "core_update"),
+    false,
+  );
+  assert.ok(
+    snapshot.findings.some(
+      (f) => f.kind === "site_health" && f.test === "wordpress-version" && f.result === "critical",
+    ),
+  );
+});
+
+test("runScan uses currently running version from a critical wordpress-version test, not the offer", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, "<html></html>");
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2"] });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, []);
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/wordpress-version")) {
+      json(res, {
+        status: "critical",
+        label: "WordPress update available (6.7.1)",
+        description: "<p>A new version of WordPress is available. Your site is currently running version 6.4.2.</p>",
+      });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/")) {
+      json(res, { status: "good", label: "ok", description: "" });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-health-running"),
+      name: "Hidden",
+      origin: parseOrigin(`http://127.0.0.1:${portOf(server)}`),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    fakeOrg({
+      fetch: globalThis.fetch,
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+    }),
+  );
+  server.close();
+  assert.equal(snapshot.coreVersion, "6.4.2");
+  assert.ok(snapshot.findings.some((f) => f.kind === "core_update" && f.installed === "6.4.2"));
 });
 
 test("runScan does not follow homepage redirects off-origin", async () => {
@@ -215,6 +387,9 @@ function fakeOrg(base: ScanDeps): ScanDeps {
       const url = String(input);
       if (url.includes("api.wordpress.org/plugins/info")) {
         return new Response(JSON.stringify({ version: "1.2.0", last_updated: "2018-01-01" }), { status: 200 });
+      }
+      if (url.includes("api.wordpress.org/themes/info")) {
+        return new Response(JSON.stringify({ version: "1.3" }), { status: 200 });
       }
       if (url.includes("api.wordpress.org/core/version-check")) {
         return new Response(JSON.stringify({ offers: [{ current: "6.7.1" }] }), { status: 200 });
