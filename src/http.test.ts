@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
-import { createApp } from "./http.js";
+import { createApp, SESSION_TTL_MS, sessionToken } from "./http.js";
 import { Store } from "./store.js";
 
 test("cron GET /api/scan-all needs the bearer secret when the board has a password", async () => {
@@ -72,6 +72,101 @@ test("login rejects a password cookie and rate-limits failures", async () => {
   await store.close();
 });
 
+test("logout clears the cookie and an expired session is rejected", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const app = createApp(new Fleet(store), "board");
+  const session = await loginCookie(app, "board");
+
+  const out = await app.request("/api/logout", { method: "POST", headers: { cookie: session } });
+  assert.equal(out.status, 200);
+  assert.match(out.headers.get("set-cookie") ?? "", /Max-Age=0/);
+
+  const expired = sessionToken("board", Date.now() - SESSION_TTL_MS - 1000);
+  const denied = await app.request("/api/sites", { headers: { cookie: `watch=${expired}` } });
+  assert.equal(denied.status, 401);
+
+  const ok = await app.request("/api/sites", { headers: { cookie: session } });
+  assert.equal(ok.status, 200);
+  await store.close();
+});
+
+test("PATCH /api/sites/:id updates the name and rejects a bad password", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  let allow = true;
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (!allow) {
+        return new Response("no", { status: 401 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet, "board");
+  const session = await loginCookie(app, "board");
+
+  const renamed = await app.request(`/api/sites/${site.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie: session },
+    body: JSON.stringify({ name: "Shop" }),
+  });
+  assert.equal(renamed.status, 200);
+  assert.equal(((await renamed.json()) as { name: string }).name, "Shop");
+
+  const page = await app.request(`/api/sites/${site.id}`, { headers: { cookie: session } });
+  const body = (await page.json()) as { username: string; history: unknown[] };
+  assert.equal(body.username, "luan");
+  assert.ok(Array.isArray(body.history));
+
+  allow = false;
+  const rejected = await app.request(`/api/sites/${site.id}`, {
+    method: "PATCH",
+    headers: { "content-type": "application/json", cookie: session },
+    body: JSON.stringify({ applicationPassword: "nope" }),
+  });
+  assert.equal(rejected.status, 400);
+  await store.close();
+});
+
+test("login lockout is shared across app instances on the same database", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const path = join(dir, "watch.db");
+  const store = new Store(path);
+  const app = createApp(new Fleet(store), "board");
+  for (let i = 0; i < 10; i += 1) {
+    const fail = await app.request("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9" },
+      body: JSON.stringify({ password: "nope" }),
+    });
+    assert.equal(fail.status, 401);
+  }
+  await store.close();
+
+  const again = new Store(path);
+  const app2 = createApp(new Fleet(again), "board");
+  const locked = await app2.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9" },
+    body: JSON.stringify({ password: "board" }),
+  });
+  assert.equal(locked.status, 429);
+  await again.close();
+});
+
 test("API responses include security headers", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
   const store = new Store(join(dir, "watch.db"));
@@ -133,6 +228,7 @@ async function loginCookie(app: ReturnType<typeof createApp>, password: string):
   assert.ok(header);
   assert.match(header, /HttpOnly/);
   assert.match(header, /SameSite=Lax/);
+  assert.match(header, /Max-Age=604800/);
   const match = header.match(/^watch=([^;]+)/);
   assert.ok(match?.[1]);
   return `watch=${match[1]}`;

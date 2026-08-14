@@ -29,7 +29,8 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 2. Push this repo to GitHub and import it in Vercel.
 3. Set these environment variables on the Vercel project:
 
-   - `DASHBOARD_PASSWORD` — the password you type on `/login.html`
+   - `DASHBOARD_PASSWORD` — the password you type on `/login.html`. Sessions last 7 days.
+   - `WATCH_SECRET` — optional. Encrypts Application Passwords in Turso. If unset, `DASHBOARD_PASSWORD` is the wrapping key. Set this if you want to change the board password later without rewriting site credentials.
    - `TURSO_DATABASE_URL` — `libsql://...`
    - `TURSO_AUTH_TOKEN`
    - `CRON_SECRET` — Vercel sends this as `Authorization: Bearer …` on the daily scan. Without it the board password blocks the cron.
@@ -40,7 +41,9 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 npx vercel
 ```
 
-Application Passwords for your WordPress sites will live in Turso. Treat that database like production secrets.
+Application Passwords for your WordPress sites live in Turso, encrypted at rest when `WATCH_SECRET` or `DASHBOARD_PASSWORD` is set. Treat that database like production secrets.
+
+The board cookie is an HMAC of the dashboard password with a 7-day lifetime. **Log out** clears it.
 
 ## Connect a site
 
@@ -53,7 +56,7 @@ Use an administrator account. Application Passwords inherit that user's capabili
 
 If connect says WordPress did not see the password, the host or CDN dropped the `Authorization` header. Hostinger CDN does this. In hPanel, disable CDN or exclude `/wp-json`, or add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess`.
 
-wwatch starts a scan as soon as the site is added.
+wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the drawer and click **Edit**. The origin cannot change; scan history stays.
 
 ## What a scan checks
 
@@ -66,7 +69,7 @@ wwatch starts a scan as soon as the site is added.
 - Whether `xmlrpc.php` accepts a method call
 - TLS days left, on HTTPS origins
 
-A scan is a snapshot. The site row shows the latest finished snapshot. A running scan does not rewrite that row until it finishes.
+A scan is a snapshot. The site row shows the latest finished snapshot. The drawer lists earlier scans (rollup, time, finding counts). A running scan does not rewrite that row until it finishes.
 
 Vercel hits `GET /api/scan-all` every day at 06:00 UTC. That is the same route as **Scan all**. Hobby only allows a daily cron, which is the interval this board needs. Without the cron, the board stays on the last scan you started by hand.
 

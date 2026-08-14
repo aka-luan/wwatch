@@ -202,9 +202,17 @@ tr.row:hover td {
 }
 
 .finding,
-.plugin {
+.plugin,
+.scan {
   border-top: 1px solid var(--line);
   padding: 10px 0;
+}
+
+.scan {
+  display: flex;
+  gap: 10px;
+  align-items: baseline;
+  color: var(--muted);
 }
 
 .finding p,

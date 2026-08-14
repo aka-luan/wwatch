@@ -8,6 +8,7 @@ import {
   parsePluginRef,
   pluginSlug,
   rollupOf,
+  scanSummary,
   type Finding,
 } from "./domain.js";
 
@@ -86,4 +87,26 @@ test("findingCounts tallies by severity", () => {
     { kind: "down", severity: "crit", title: "down", detail: "" },
   ];
   assert.deepEqual(findingCounts(findings), { crit: 1, warn: 1, info: 1 });
+});
+
+test("scanSummary keeps rollup, time, and counts without findings", () => {
+  const summary = scanSummary({
+    id: "c1" as never,
+    siteId: "s1" as never,
+    startedAt: "t0",
+    finishedAt: "t1",
+    rollup: "degraded",
+    coreVersion: "6.7.1",
+    plugins: [],
+    findings: [
+      { kind: "down", severity: "crit", title: "down", detail: "" },
+      { kind: "rate_limited", severity: "warn", title: "rl", detail: "" },
+    ],
+  });
+  assert.deepEqual(summary, {
+    id: "c1",
+    finishedAt: "t1",
+    rollup: "degraded",
+    counts: { crit: 1, warn: 1, info: 0 },
+  });
 });

@@ -3,8 +3,7 @@ import { Hono } from "hono";
 import { asSiteId } from "./domain.js";
 import { Fleet } from "./fleet.js";
 
-const LOGIN_WINDOW_MS = 15 * 60 * 1000;
-const LOGIN_MAX_FAILURES = 10;
+export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_PURPOSE = "wwatch-session-v1";
 const CSP = [
   "default-src 'self'",
@@ -21,7 +20,6 @@ const CSP = [
 
 export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = ""): Hono {
   const app = new Hono();
-  const loginFailures = new Map<string, { count: number; resetAt: number }>();
 
   app.use("*", async (c, next) => {
     await next();
@@ -51,6 +49,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       "/login",
       "/login.js",
       "/api/login",
+      "/api/logout",
       "/styles.css",
       "/app.js",
       "/favicon.ico",
@@ -64,7 +63,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return;
     }
     const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
-    if (cookie && secretsEqual(cookie, sessionToken(dashboardPassword))) {
+    if (cookie && sessionCookieValid(cookie, dashboardPassword)) {
       await next();
       return;
     }
@@ -107,6 +106,24 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
     return c.body(null, 204);
   });
 
+  app.patch("/api/sites/:id", async (c) => {
+    const body = await readJsonObject(c);
+    if (!body) {
+      return c.json({ error: "invalid json" }, 400);
+    }
+    try {
+      const site = await fleet.update(asSiteId(c.req.param("id")), {
+        ...(typeof body.name === "string" ? { name: body.name } : {}),
+        ...(typeof body.username === "string" ? { username: body.username } : {}),
+        ...(typeof body.applicationPassword === "string" ? { applicationPassword: body.applicationPassword } : {}),
+      });
+      return c.json(site);
+    } catch (error) {
+      const text = message(error);
+      return c.json({ error: text }, text === "Unknown site" ? 404 : 400);
+    }
+  });
+
   app.post("/api/sites/:id/scan", async (c) => {
     try {
       return c.json(await fleet.startScan(asSiteId(c.req.param("id")), deferFrom(c)));
@@ -143,21 +160,22 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
 
   app.post("/api/login", async (c) => {
     const ip = clientIp(c);
-    if (!loginAllowed(loginFailures, ip)) {
+    if (!(await fleet.loginAllowed(ip))) {
       return c.json({ error: "too many attempts" }, 429);
     }
     const body = await readJsonObject(c);
     const password = typeof body?.password === "string" ? body.password : "";
     if (!dashboardPassword || !secretsEqual(password, dashboardPassword)) {
-      recordLoginFailure(loginFailures, ip);
+      await fleet.recordLoginFailure(ip);
       return c.json({ error: "wrong password" }, 401);
     }
-    loginFailures.delete(ip);
-    const secure = cookieSecure(c);
-    c.header(
-      "set-cookie",
-      `watch=${encodeURIComponent(sessionToken(dashboardPassword))}; Path=/; HttpOnly; SameSite=Lax${secure}`,
-    );
+    await fleet.clearLoginFailures(ip);
+    c.header("set-cookie", watchCookie(sessionToken(dashboardPassword), c, Math.floor(SESSION_TTL_MS / 1000)));
+    return c.json({ ok: true });
+  });
+
+  app.post("/api/logout", async (c) => {
+    c.header("set-cookie", watchCookie("", c, 0));
     return c.json({ ok: true });
   });
 
@@ -216,8 +234,30 @@ async function readJsonObject(c: { req: { json: () => Promise<unknown> } }): Pro
   }
 }
 
-function sessionToken(password: string): string {
-  return createHmac("sha256", password).update(SESSION_PURPOSE).digest("base64url");
+export function sessionToken(password: string, issuedAt = Date.now()): string {
+  const issued = String(issuedAt);
+  const mac = createHmac("sha256", password).update(`${SESSION_PURPOSE}:${issued}`).digest("base64url");
+  return `${issued}.${mac}`;
+}
+
+export function sessionCookieValid(cookie: string, password: string, now = Date.now()): boolean {
+  const dot = cookie.indexOf(".");
+  if (dot <= 0) {
+    return false;
+  }
+  const issuedAt = Number(cookie.slice(0, dot));
+  if (!Number.isFinite(issuedAt) || issuedAt > now + 60_000 || now - issuedAt > SESSION_TTL_MS) {
+    return false;
+  }
+  return secretsEqual(cookie, sessionToken(password, issuedAt));
+}
+
+function watchCookie(
+  value: string,
+  c: { req: { url: string; header: (name: string) => string | undefined } },
+  maxAge: number,
+): string {
+  return `watch=${encodeURIComponent(value)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${maxAge}${cookieSecure(c)}`;
 }
 
 function secretsEqual(left: string, right: string): boolean {
@@ -235,25 +275,6 @@ function clientIp(c: { req: { header: (name: string) => string | undefined } }):
     }
   }
   return c.req.header("x-real-ip") ?? "local";
-}
-
-function loginAllowed(failures: Map<string, { count: number; resetAt: number }>, ip: string): boolean {
-  const now = Date.now();
-  const row = failures.get(ip);
-  if (!row || now > row.resetAt) {
-    return true;
-  }
-  return row.count < LOGIN_MAX_FAILURES;
-}
-
-function recordLoginFailure(failures: Map<string, { count: number; resetAt: number }>, ip: string): void {
-  const now = Date.now();
-  const row = failures.get(ip);
-  if (!row || now > row.resetAt) {
-    failures.set(ip, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
-    return;
-  }
-  row.count += 1;
 }
 
 function cookieSecure(c: { req: { url: string; header: (name: string) => string | undefined } }): string {
