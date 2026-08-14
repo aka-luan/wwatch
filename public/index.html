@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wwatch</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div>
+        <p class="mark">wwatch</p>
+        <p class="sub">WordPress fleet</p>
+      </div>
+      <div class="actions">
+        <button id="scan-all" type="button">Scan all</button>
+        <button id="add" class="primary" type="button">Add site</button>
+      </div>
+    </header>
+    <section id="stats" class="stats"></section>
+    <main id="table"></main>
+    <aside id="drawer" class="drawer hidden" hidden></aside>
+    <div id="modal" class="modal hidden" hidden></div>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>

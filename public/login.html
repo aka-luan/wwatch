@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>wwatch</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="modal">
+      <form class="card" id="login">
+        <h2>wwatch</h2>
+        <p class="help">This board is password-protected.</p>
+        <label>Password<input name="password" type="password" required /></label>
+        <div class="row-actions">
+          <button class="primary" type="submit">Open</button>
+        </div>
+        <p id="err" class="help"></p>
+      </form>
+    </div>
+    <script>
+      document.getElementById("login").addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const password = new FormData(event.target).get("password");
+        const response = await fetch("/api/login", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ password }),
+        });
+        if (!response.ok) {
+          document.getElementById("err").textContent = "Wrong password.";
+          return;
+        }
+        location.href = "/";
+      });
+    </script>
+  </body>
+</html>

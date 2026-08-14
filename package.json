@@ -1,0 +1,23 @@
+{
+  "name": "wwatch",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/server.ts",
+    "dev": "tsx watch src/server.ts",
+    "test": "tsx --test src/*.test.ts src/**/*.test.ts",
+    "typecheck": "tsc --noEmit",
+    "verify": "tsx scripts/verify.ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.2.0",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.0",
+    "@libsql/client": "^0.17.4",
+    "hono": "^4.13.2"
+  }
+}
