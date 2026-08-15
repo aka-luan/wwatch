@@ -162,10 +162,6 @@ body.modal-open {
   gap: 8px;
 }
 
-[data-slot="sheet-header"] .actions {
-  justify-content: flex-end;
-}
-
 .stats {
   display: flex;
   flex-wrap: wrap;
@@ -254,13 +250,6 @@ label {
   font-size: 12px;
 }
 
-.row-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-
 .mono {
   font-family: var(--font-mono);
 }
@@ -280,21 +269,13 @@ a {
     padding-bottom: 12px;
   }
 
-  .top .actions,
-  .row-actions,
-  [data-slot="sheet-header"] .actions {
+  .top .actions {
     flex-wrap: wrap;
   }
 
-  .top .actions > *,
-  .row-actions > *,
-  [data-slot="sheet-header"] .actions > * {
+  .top .actions > * {
     flex: 1;
     min-height: 44px;
-  }
-
-  .row-actions {
-    justify-content: stretch;
   }
 
   .stats {
@@ -308,10 +289,6 @@ a {
   .empty {
     margin-top: 32px;
     margin-bottom: 32px;
-  }
-
-  [data-slot="sheet-header"] .actions {
-    width: 100%;
   }
 
   .modal {

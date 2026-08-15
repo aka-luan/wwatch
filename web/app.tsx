@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Loader2Icon, ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
-import { SiteDrawer } from "@/components/site-drawer";
 import { SiteList } from "@/components/site-list";
+import { SiteSheet } from "@/components/site-sheet";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -61,6 +61,8 @@ function Board() {
     return () => clearInterval(timer);
   }, [selected]);
 
+  const selectedPage = page && selected && page.site.id === selected ? page : null;
+
   return (
     <>
       <header className="top">
@@ -117,24 +119,28 @@ function Board() {
           sites={sites}
           loaded={loaded}
           onOpen={(id) => {
+            if (id !== selected) {
+              setPage(null);
+            }
             setSelected(id);
           }}
         />
       </main>
-      {page ? (
-        <SiteDrawer
-          open={Boolean(selected)}
-          page={page}
-          onClose={() => {
+      <SiteSheet
+        open={selected !== null}
+        page={selectedPage}
+        onOpenChange={(open) => {
+          if (!open) {
             if (addOpen || editOpen) {
               return;
             }
             setSelected(null);
-          }}
-          onEdit={() => setEditOpen(true)}
-          onChanged={refresh}
-        />
-      ) : null}
+            setPage(null);
+          }
+        }}
+        onEdit={() => setEditOpen(true)}
+        onChanged={refresh}
+      />
       <AddSiteDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -143,11 +149,11 @@ function Board() {
           await refresh();
         }}
       />
-      {page ? (
+      {selectedPage ? (
         <EditSiteDialog
           open={editOpen}
           onOpenChange={setEditOpen}
-          page={page}
+          page={selectedPage}
           onSaved={refresh}
         />
       ) : null}

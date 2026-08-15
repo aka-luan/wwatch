@@ -1,6 +1,7 @@
 import type { ComponentProps, ReactNode } from "react";
 import { ChevronRightIcon, CircleCheckIcon } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
+import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { SiteStatus } from "@/lib/status";
@@ -11,22 +12,47 @@ type FindingRowProps = {
   detail?: string;
   action?: ReactNode;
   statusLabel?: string;
+  compact?: boolean;
+  showStatus?: boolean;
 };
 
-export function FindingRow({ status, title, detail, action, statusLabel }: FindingRowProps) {
+export function FindingRow({
+  status,
+  title,
+  detail,
+  action,
+  statusLabel,
+  compact = false,
+  showStatus = true,
+}: FindingRowProps) {
+  if (compact) {
+    return (
+      <div className="flex items-start gap-2 py-0.5 text-[13px] leading-5 text-muted-foreground">
+        <StatusDot status={status} decorative className="mt-1.5 size-1.5" />
+        <p className="min-w-0 [overflow-wrap:anywhere]">
+          {title}
+          {detail ? <span> · {detail}</span> : null}
+        </p>
+      </div>
+    );
+  }
   return (
     <div
       className={cn(
-        "group/finding flex items-start gap-3 border-t border-border py-3",
-        "transition-colors hover:bg-muted/30",
+        "group/finding flex flex-col gap-2 border-t border-border py-3 transition-colors hover:bg-muted/30",
+        "sm:flex-row sm:items-start sm:justify-between sm:gap-3",
       )}
     >
-      <div className="min-w-0 flex-1">
-        <StatusBadge status={status}>{statusLabel}</StatusBadge>
-        <p className="mt-1 font-medium leading-5 [overflow-wrap:anywhere]">{title}</p>
-        {detail ? <p className="mt-0.5 text-sm leading-5 text-muted-foreground">{detail}</p> : null}
+      <div className="min-w-0">
+        {showStatus ? (
+          <div className="mb-1">
+            <StatusBadge status={status}>{statusLabel}</StatusBadge>
+          </div>
+        ) : null}
+        <p className="font-medium leading-5 [overflow-wrap:anywhere]">{title}</p>
+        {detail ? <p className="mt-0.5 text-sm leading-5 text-muted-foreground [overflow-wrap:anywhere]">{detail}</p> : null}
       </div>
-      {action ? <div className="shrink-0 self-end">{action}</div> : null}
+      {action ? <div className="flex shrink-0 flex-wrap items-center gap-2 self-end">{action}</div> : null}
     </div>
   );
 }
