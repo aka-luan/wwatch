@@ -35,6 +35,37 @@ export function formatScanWhen(iso: string): string {
   });
 }
 
+/** Compact local stamp for the scan timeline: “Today · 13:21”. */
+export function timelineWhen(iso: string, now = new Date()): string {
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) {
+    return "Unknown time";
+  }
+  const time = date.toLocaleTimeString(undefined, {
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  });
+  if (sameLocalDay(date, now)) {
+    return `Today · ${time}`;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (sameLocalDay(date, yesterday)) {
+    return `Yesterday · ${time}`;
+  }
+  const day = date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    ...(date.getFullYear() === now.getFullYear() ? {} : { year: "numeric" }),
+  });
+  return `${day} · ${time}`;
+}
+
+function sameLocalDay(a: Date, b: Date): boolean {
+  return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+}
+
 /** Longer relative phrase for failure copy (“18 minutes ago”). */
 export function agoWords(iso: string | null | undefined): string {
   if (!iso) {

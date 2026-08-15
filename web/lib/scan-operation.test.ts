@@ -59,9 +59,9 @@ test("lastSuccessfulFinishedAt prefers the latest non-down history entry after a
     findings: [{ kind: "down", severity: "crit", title: "Scan failed", detail: "timeout" }],
   });
   const history: ScanSummary[] = [
-    { id: "c3", finishedAt: "2026-08-15T12:00:00.000Z", rollup: "down", counts: { crit: 1, warn: 0, info: 0 } },
-    { id: "c2", finishedAt: "2026-08-15T10:42:00.000Z", rollup: "degraded", counts: { crit: 0, warn: 1, info: 0 } },
-    { id: "c1", finishedAt: "2026-08-14T10:00:00.000Z", rollup: "ok", counts: { crit: 0, warn: 0, info: 0 } },
+    { id: "c3", finishedAt: "2026-08-15T12:00:00.000Z", rollup: "down", counts: { crit: 1, warn: 0, info: 0, updates: 0 } },
+    { id: "c2", finishedAt: "2026-08-15T10:42:00.000Z", rollup: "degraded", counts: { crit: 0, warn: 1, info: 0, updates: 0 } },
+    { id: "c1", finishedAt: "2026-08-14T10:00:00.000Z", rollup: "ok", counts: { crit: 0, warn: 0, info: 0, updates: 0 } },
   ];
   assert.equal(lastSuccessfulFinishedAt({ latest: failed, history }), "2026-08-15T10:42:00.000Z");
   assert.equal(lastSuccessfulFinishedAt({ latest: snapshot(), history }), "2026-08-15T10:42:00.000Z");
@@ -88,7 +88,7 @@ test("scanOperationOf distinguishes running, failed, and idle without inventing 
           id: "c0",
           finishedAt: "2026-08-15T09:00:00.000Z",
           rollup: "ok",
-          counts: { crit: 0, warn: 0, info: 0 },
+          counts: { crit: 0, warn: 0, info: 0, updates: 0 },
         },
       ],
     }),
