@@ -43,7 +43,7 @@ export function FindingRow({
 
   if (resolved === "update") {
     return (
-      <div className="flex items-baseline gap-3 py-1">
+      <div className="flex items-baseline gap-3 py-0.5" data-slot="finding-row">
         <p className="min-w-0 flex-1 font-medium leading-5 [overflow-wrap:anywhere]">{title}</p>
         {detail ? (
           <p className="mono shrink-0 text-[13px] leading-5 text-muted-foreground">{detail}</p>
@@ -55,7 +55,7 @@ export function FindingRow({
 
   if (resolved === "info") {
     return (
-      <div className="flex items-start gap-2 py-1.5 text-[13px] leading-5">
+      <div className="flex items-start gap-2 py-1.5 text-[13px] leading-5" data-slot="finding-row">
         <span className="mt-0.5 shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
           Info
         </span>
@@ -74,7 +74,7 @@ export function FindingRow({
   }
 
   return (
-    <div className="flex items-start gap-3 py-2">
+    <div className="flex items-start gap-3 py-2" data-slot="finding-row">
       {showStatus ? (
         <StatusBadge status={status} className="mt-0.5 shrink-0">
           {statusLabel}
