@@ -177,3 +177,17 @@ test("row copy keeps unknown reasons on the finding line", () => {
     meta: "",
   });
 });
+
+test("row copy keeps prior results visible while a refresh scan runs", () => {
+  const overview = siteOverview(
+    row({
+      findings: [finding("plugin_update", "warn", "Akismet 1.0 → 1.1")],
+      rollup: "degraded",
+      running: { id: "j2", startedAt: "t2" },
+    }),
+  );
+  assert.deepEqual(siteRowCopy(overview, () => "8m ago", () => "Aug 15, 10:42"), {
+    finding: "Akismet 1.0 → 1.1",
+    meta: "Showing results from Aug 15, 10:42",
+  });
+});

@@ -1,10 +1,12 @@
-import { ChevronDownIcon, ChevronRightIcon, CircleCheckIcon, Loader2Icon } from "lucide-react";
+import { ChevronDownIcon, ChevronRightIcon, CircleCheckIcon } from "lucide-react";
+import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ago, host } from "@/lib/format";
+import { ago, formatScanWhen, host } from "@/lib/format";
+import { scanningLabel, scanOperationOf } from "@/lib/scan-operation";
 import { siteBoard, type BoardSite, type SiteBoard } from "@/lib/site-board";
 import { siteOverview, siteRowCopy } from "@/lib/site-overview";
 import { SITE_STATUS_LABEL } from "@/lib/status";
@@ -171,6 +173,7 @@ function SiteRow({
   onOpen: (id: string) => void;
 }) {
   const overview = siteOverview(row);
+  const operation = scanOperationOf(row);
   if (density === "compact") {
     const time = ago(overview.finishedAt);
     return (
@@ -178,6 +181,7 @@ function SiteRow({
         type="button"
         aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${host(row.site.origin)}, ${time}`}
         className={rowButtonClass("compact")}
+        aria-busy={operation.kind === "running"}
         onClick={() => onOpen(row.site.id)}
       >
         <StatusDot status={overview.status} decorative />
@@ -186,19 +190,23 @@ function SiteRow({
           <span className="mono host min-w-0 truncate text-[13px]">{host(row.site.origin)}</span>
         </span>
         <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-          {overview.running ? <Loader2Icon className="size-3.5 shrink-0 animate-spin" aria-hidden /> : null}
-          <span>{time}</span>
+          {operation.kind === "running" ? (
+            <ProcessingIndicator label={scanningLabel(operation.stage)} className="text-[13px]" size={12} />
+          ) : (
+            <span>{time}</span>
+          )}
         </span>
       </button>
     );
   }
 
-  const copy = siteRowCopy(overview, ago);
+  const copy = siteRowCopy(overview, ago, formatScanWhen);
   return (
     <button
       type="button"
       aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${copy.finding ?? copy.meta}`}
       className={rowButtonClass("full")}
+      aria-busy={operation.kind === "running"}
       onClick={() => onOpen(row.site.id)}
     >
       <StatusDot status={overview.status} decorative className="mt-1.5" />
@@ -211,9 +219,11 @@ function SiteRow({
           <StatusBadge status={overview.status} dot={false} className="shrink-0" />
         </span>
         {copy.finding ? <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span> : null}
-        {overview.running || copy.meta ? (
-          <span className="mt-1 flex items-center gap-1.5 text-[13px] leading-5 text-muted-foreground">
-            {overview.running ? <Loader2Icon className="size-3.5 shrink-0 animate-spin" aria-hidden /> : null}
+        {operation.kind === "running" || copy.meta ? (
+          <span className="mt-1 flex flex-col gap-0.5 text-[13px] leading-5 text-muted-foreground">
+            {operation.kind === "running" ? (
+              <ProcessingIndicator label={`${scanningLabel(operation.stage)}…`} size={12} />
+            ) : null}
             {copy.meta ? <span>{copy.meta}</span> : null}
           </span>
         ) : null}

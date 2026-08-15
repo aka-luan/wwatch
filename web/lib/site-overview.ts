@@ -62,17 +62,21 @@ function isPrimaryTheSoleUpdate(primary: Finding, updates: number): boolean {
 export function siteRowCopy(
   overview: SiteOverview,
   formatAgo: (iso: string) => string,
+  formatWhen: (iso: string) => string = formatAgo,
 ): { finding: string | null; meta: string } {
-  const scanned = overview.finishedAt ? `scanned ${formatAgo(overview.finishedAt)}` : null;
-  const scanning = overview.running && overview.finishedAt ? "scanning" : null;
+  const resultStamp = overview.finishedAt
+    ? overview.running
+      ? `Showing results from ${formatWhen(overview.finishedAt)}`
+      : `scanned ${formatAgo(overview.finishedAt)}`
+    : null;
   if (overview.emphasizePrimary) {
     return {
       finding: overview.primaryLabel,
-      meta: [overview.extra, scanning, scanned].filter(Boolean).join(" · "),
+      meta: [overview.extra, resultStamp].filter(Boolean).join(" · "),
     };
   }
   return {
     finding: null,
-    meta: [overview.primaryLabel, overview.extra, scanning, scanned].filter(Boolean).join(" · "),
+    meta: [overview.primaryLabel, overview.extra, resultStamp].filter(Boolean).join(" · "),
   };
 }
