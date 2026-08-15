@@ -125,7 +125,7 @@ npm run verify
 The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live in `web/components/ui`. Product pieces on top of those:
 
 - `StatusBadge` / `StatusDot` for site and finding status (`critical`, `attention`, `healthy`, `unknown`)
-- `SiteList` groups the fleet into Needs attention (critical, attention, unknown) and compact Healthy rows
+- `SiteList` groups the fleet into Needs attention (critical, attention, unknown) and Healthy rows
 - `FindingRow` for operational finding lines
 - `SiteSheet` for the site action center (shadcn `Sheet`)
 - Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`)

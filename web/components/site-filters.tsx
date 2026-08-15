@@ -1,4 +1,6 @@
+import { useEffect, useRef } from "react";
 import { CheckIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
+import { StatusDot } from "@/components/status-dot";
 import { Badge, badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +34,22 @@ export function SiteFilters({
   const counts = statusFilterCounts(sites);
   const secondaryCounts = secondaryFilterCounts(sites);
   const active = filtersActive(state);
+  const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
+        return;
+      }
+      if (isTypingTarget(event.target) || isOverlayOpen()) {
+        return;
+      }
+      event.preventDefault();
+      searchRef.current?.focus();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   return (
     <section className="site-filters" aria-label="Filter sites">
@@ -42,13 +60,19 @@ export function SiteFilters({
             aria-hidden
           />
           <Input
+            ref={searchRef}
             type="search"
             value={state.query}
             onChange={(event) => onChange({ ...state, query: event.target.value })}
             placeholder="Search sites"
             aria-label="Search sites by name or domain"
-            className="h-8 pl-8 md:text-sm"
+            className="peer h-8 border-transparent bg-transparent pl-8 shadow-none md:pr-8 md:text-sm dark:bg-transparent"
           />
+          {state.query ? null : (
+            <kbd className="pointer-events-none absolute top-1/2 right-2 hidden h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-sm border border-border/80 px-1 font-mono text-[11px] text-muted-foreground peer-focus:hidden md:inline-flex">
+              /
+            </kbd>
+          )}
         </div>
         <SecondaryFiltersPopover
           selected={state.secondary}
@@ -65,7 +89,7 @@ export function SiteFilters({
             type="button"
             variant="ghost"
             size="sm"
-            className="text-muted-foreground"
+            className="shrink-0 text-muted-foreground"
             onClick={() => onChange({ query: "", status: "all", secondary: [] })}
           >
             Clear
@@ -73,7 +97,7 @@ export function SiteFilters({
         ) : null}
       </div>
 
-      <div className="status-filter-scroll -mx-1 flex gap-1 overflow-x-auto px-1 py-0.5">
+      <div className="status-filter-scroll -mx-1 flex gap-1 overflow-x-auto px-1 py-0.5" role="group" aria-label="Fleet summary">
         {PRIMARY_STATUS_FILTERS.map((filter) => (
           <StatusFilterChip
             key={filter}
@@ -118,6 +142,7 @@ function StatusFilterChip({
   onSelect: () => void;
 }) {
   const label = primaryFilterLabel(filter);
+  const countClass = countToneClass(filter, count, active);
   return (
     <Badge
       variant={active ? "secondary" : "outline"}
@@ -125,24 +150,44 @@ function StatusFilterChip({
         <button
           type="button"
           aria-pressed={active}
-          aria-label={`${label}, ${count} sites`}
+          aria-label={`${label}, ${count} ${count === 1 ? "site" : "sites"}`}
           onClick={onSelect}
         />
       }
       className={cn(
         "h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2.5 text-xs font-medium",
-        "ring-1 ring-border/80 ring-inset",
         active
-          ? "bg-secondary text-foreground ring-foreground/15"
-          : "bg-transparent text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+          ? "bg-secondary text-foreground ring-1 ring-foreground/15 ring-inset"
+          : "bg-transparent text-muted-foreground ring-1 ring-border/70 ring-inset hover:bg-muted/60 hover:text-foreground",
       )}
     >
+      {filter === "all" ? null : (
+        <StatusDot
+          status={filter}
+          decorative
+          className={cn("size-1.5", count === 0 && "opacity-40")}
+        />
+      )}
       <span>{label}</span>
-      <span className={cn("font-normal tabular-nums", active ? "text-muted-foreground" : "opacity-70")}>
-        {count}
-      </span>
+      <span className={cn("tabular-nums", countClass)}>{count}</span>
     </Badge>
   );
+}
+
+function countToneClass(filter: PrimaryStatusFilter, count: number, active: boolean): string {
+  if (active) {
+    return "font-medium text-foreground";
+  }
+  if (count === 0 || filter === "all") {
+    return "font-normal opacity-70";
+  }
+  if (filter === "critical") {
+    return "font-medium text-destructive";
+  }
+  if (filter === "attention") {
+    return "font-medium text-warning";
+  }
+  return "font-normal opacity-70";
 }
 
 function ActiveFilterBadge({ label, onRemove }: { label: string; onRemove: () => void }) {
@@ -234,5 +279,24 @@ function SecondaryFiltersPopover({
         })}
       </PopoverContent>
     </Popover>
+  );
+}
+
+function isTypingTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) {
+    return false;
+  }
+  if (target.isContentEditable) {
+    return true;
+  }
+  const tag = target.tagName;
+  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
+}
+
+function isOverlayOpen(): boolean {
+  return Boolean(
+    document.querySelector(
+      '[data-slot="dialog-overlay"][data-open], [data-slot="sheet-overlay"][data-open], [data-slot="alert-dialog-overlay"][data-open]',
+    ),
   );
 }

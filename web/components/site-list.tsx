@@ -1,4 +1,4 @@
-import { ChevronDownIcon, ChevronRightIcon, CircleCheckIcon } from "lucide-react";
+import { ChevronDownIcon, CircleCheckIcon } from "lucide-react";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
@@ -8,6 +8,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ago, formatScanWhen, host } from "@/lib/format";
 import { scanningLabel, scanOperationOf } from "@/lib/scan-operation";
 import { siteBoard, type BoardSite, type SiteBoard } from "@/lib/site-board";
+import { filterEmptyHeading, filtersActive, type SiteFilterState } from "@/lib/site-filters";
 import { siteOverview, siteRowCopy } from "@/lib/site-overview";
 import { SITE_STATUS_LABEL } from "@/lib/status";
 import { cn } from "@/lib/utils";
@@ -16,18 +17,20 @@ import type { OverviewRow } from "@/lib/types";
 export function SiteList({
   sites,
   fleetCount,
-  filtersActive = false,
+  filters,
   onClearFilters,
   loaded,
   onOpen,
 }: {
   sites: OverviewRow[];
   fleetCount: number;
-  filtersActive?: boolean;
+  filters: SiteFilterState;
   onClearFilters?: () => void;
   loaded: boolean;
   onOpen: (id: string) => void;
 }) {
+  const filtering = filtersActive(filters);
+
   if (!loaded) {
     return (
       <div className="site-list">
@@ -51,10 +54,10 @@ export function SiteList({
       </div>
     );
   }
-  if (sites.length === 0 && filtersActive) {
+  if (sites.length === 0 && filtering) {
     return (
       <div className="empty empty-compact">
-        <h2>No sites match these filters.</h2>
+        <h2>{filterEmptyHeading(filters)}</h2>
         {onClearFilters ? (
           <p>
             <button type="button" className="link-button" onClick={onClearFilters}>
@@ -69,8 +72,14 @@ export function SiteList({
   const board = siteBoard(sites);
   return (
     <div className="site-list">
-      {board.allHealthy ? <AllHealthyNote count={sites.length} /> : <NeedsAttentionSection board={board} onOpen={onOpen} />}
-      {board.healthy.length > 0 ? (
+      {filtering ? (
+        <FilteredBoard board={board} onOpen={onOpen} />
+      ) : board.allHealthy ? (
+        <AllHealthyNote count={sites.length} />
+      ) : (
+        <NeedsAttentionSection board={board} onOpen={onOpen} />
+      )}
+      {!filtering && board.healthy.length > 0 ? (
         <>
           {board.needsAttention.length > 0 ? <Separator className="my-4" /> : null}
           <div className={board.needsAttention.length > 0 ? undefined : "mt-4"}>
@@ -79,6 +88,22 @@ export function SiteList({
         </>
       ) : null}
     </div>
+  );
+}
+
+function FilteredBoard({ board, onOpen }: { board: SiteBoard; onOpen: (id: string) => void }) {
+  const mixed = board.needsAttention.length > 0 && board.healthy.length > 0;
+  if (!mixed) {
+    const items = board.needsAttention.length > 0 ? board.needsAttention : board.healthy;
+    const density = board.needsAttention.length > 0 ? "full" : "compact";
+    return <SiteRows items={items} density={density} onOpen={onOpen} />;
+  }
+  return (
+    <>
+      <NeedsAttentionSection board={board} onOpen={onOpen} />
+      <Separator className="my-4" />
+      <HealthySection board={board} onOpen={onOpen} allowCollapse={false} />
+    </>
   );
 }
 
@@ -93,11 +118,19 @@ function NeedsAttentionSection({ board, onOpen }: { board: SiteBoard; onOpen: (i
   );
 }
 
-function HealthySection({ board, onOpen }: { board: SiteBoard; onOpen: (id: string) => void }) {
+function HealthySection({
+  board,
+  onOpen,
+  allowCollapse = true,
+}: {
+  board: SiteBoard;
+  onOpen: (id: string) => void;
+  allowCollapse?: boolean;
+}) {
   const heading = `Healthy · ${board.healthy.length}`;
   const rows = <SiteRows items={board.healthy} density="compact" onOpen={onOpen} />;
 
-  if (board.collapseHealthy) {
+  if (allowCollapse && board.collapseHealthy) {
     return (
       <section aria-labelledby="healthy-heading">
         <Collapsible defaultOpen={false}>
@@ -174,53 +207,38 @@ function SiteRow({
 }) {
   const overview = siteOverview(row);
   const operation = scanOperationOf(row);
-  if (density === "compact") {
-    const time = ago(overview.finishedAt);
-    return (
-      <button
-        type="button"
-        aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${host(row.site.origin)}, ${time}`}
-        className={rowButtonClass("compact")}
-        aria-busy={operation.kind === "running"}
-        onClick={() => onOpen(row.site.id)}
-      >
-        <StatusDot status={overview.status} decorative />
-        <span className="flex min-w-0 flex-1 items-center gap-3">
-          <span className="max-w-[50%] shrink-0 truncate font-medium text-foreground/80">{row.site.name}</span>
-          <span className="mono host min-w-0 truncate text-[13px]">{host(row.site.origin)}</span>
-        </span>
-        <span className="flex shrink-0 items-center gap-1.5 text-[13px] text-muted-foreground">
-          {operation.kind === "running" ? (
-            <ProcessingIndicator label={scanningLabel(operation.stage)} className="text-[13px]" size={12} />
-          ) : (
-            <span>{time}</span>
-          )}
-        </span>
-      </button>
-    );
-  }
-
   const copy = siteRowCopy(overview, ago, formatScanWhen);
+  const compact = density === "compact";
+
   return (
     <button
       type="button"
       aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${copy.finding ?? copy.meta}`}
-      className={rowButtonClass("full")}
+      className={rowButtonClass(density)}
       aria-busy={operation.kind === "running"}
       onClick={() => onOpen(row.site.id)}
     >
       <StatusDot status={overview.status} decorative className="mt-1.5" />
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-3">
-          <span className="flex min-w-0 items-baseline gap-2">
-            <span className="min-w-0 font-semibold leading-5 [overflow-wrap:anywhere]">{row.site.name}</span>
+          <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+            <span
+              className={cn(
+                "min-w-0 leading-5 [overflow-wrap:anywhere] text-foreground",
+                compact ? "font-medium" : "font-semibold",
+              )}
+            >
+              {row.site.name}
+            </span>
             <span className="mono host min-w-0 truncate text-[13px]">{host(row.site.origin)}</span>
           </span>
-          <StatusBadge status={overview.status} dot={false} className="shrink-0" />
+          <StatusBadge status={overview.status} dot={false} className="mt-0.5 shrink-0" />
         </span>
-        {copy.finding ? <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span> : null}
+        {copy.finding ? (
+          <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span>
+        ) : null}
         {operation.kind === "running" || copy.meta ? (
-          <span className="mt-1 flex flex-col gap-0.5 text-[13px] leading-5 text-muted-foreground">
+          <span className="mt-1 flex flex-col gap-0.5 text-[12px] leading-4 text-muted-foreground">
             {operation.kind === "running" ? (
               <ProcessingIndicator label={`${scanningLabel(operation.stage)}…`} size={12} />
             ) : null}
@@ -228,10 +246,6 @@ function SiteRow({
           </span>
         ) : null}
       </span>
-      <ChevronRightIcon
-        className="mt-1 size-4 shrink-0 text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
-        aria-hidden
-      />
     </button>
   );
 }
@@ -241,8 +255,6 @@ function rowButtonClass(density: "full" | "compact"): string {
     "group flex w-full rounded-md border-0 bg-transparent px-2 text-left",
     "cursor-pointer appearance-none transition-colors duration-150",
     "hover:bg-muted/50 active:bg-muted/70 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-    density === "compact"
-      ? "items-center gap-3 py-1.5 text-muted-foreground"
-      : "items-start gap-3 py-3 text-foreground",
+    density === "compact" ? "items-start gap-3 py-2" : "items-start gap-3 py-2.5 text-foreground",
   );
 }

@@ -65,10 +65,7 @@ export function UpdatesEntry({
         <b>{summary.updateCount}</b> {updatesLabel} available across <b>{summary.siteCount}</b>{" "}
         {sitesLabel}
       </span>
-      <span className="updates-entry-action">
-        Review updates
-        <ChevronRightIcon className="size-3.5" aria-hidden />
-      </span>
+      <span className="updates-entry-action">Review updates</span>
     </button>
   );
 }

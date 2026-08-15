@@ -21,12 +21,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { fleetUpdateSummary } from "@/lib/fleet-updates";
-import {
-  emptyFilterState,
-  filterSites,
-  filtersActive,
-  type SiteFilterState,
-} from "@/lib/site-filters";
+import { emptyFilterState, filterSites, type SiteFilterState } from "@/lib/site-filters";
 import { sitePageFromOverview } from "@/lib/scan-operation";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
@@ -76,45 +71,47 @@ function Board() {
 
   const selectedPage = page && selected && page.site.id === selected ? page : null;
   const filteredSites = filterSites(sites, filters);
-  const filtering = filtersActive(filters);
   const scanning = sites.filter((row) => row.running).length;
   const updates = useMemo(() => fleetUpdateSummary(sites), [sites]);
 
   return (
-    <>
+    <div className="board">
       <header className="top">
         <div>
           <p className="mark">wwatch</p>
           <p className="sub">WordPress fleet</p>
         </div>
         <div className="actions">
-          <Button
-            variant="outline"
-            type="button"
-            disabled={scanAllBusy}
-            aria-busy={scanAllBusy}
-            onClick={() => {
-              void (async () => {
-                setScanAllBusy(true);
-                try {
-                  await api("/api/scan-all", { method: "POST" });
-                  toast.success("Scan started");
-                  await refresh();
-                } finally {
-                  setScanAllBusy(false);
-                }
-              })();
-            }}
-          >
-            {scanAllBusy ? <Spinner size={14} /> : <ScanLineIcon className="size-4" aria-hidden />}
-            Scan all
-          </Button>
-          <Button type="button" onClick={() => setAddOpen(true)}>
-            Add site
-          </Button>
+          <div className="actions-main">
+            <Button
+              variant="ghost"
+              type="button"
+              disabled={scanAllBusy}
+              aria-busy={scanAllBusy}
+              onClick={() => {
+                void (async () => {
+                  setScanAllBusy(true);
+                  try {
+                    await api("/api/scan-all", { method: "POST" });
+                    toast.success("Scan started");
+                    await refresh();
+                  } finally {
+                    setScanAllBusy(false);
+                  }
+                })();
+              }}
+            >
+              {scanAllBusy ? <Spinner size={14} /> : <ScanLineIcon className="size-4" aria-hidden />}
+              Scan all
+            </Button>
+            <Button type="button" onClick={() => setAddOpen(true)}>
+              Add site
+            </Button>
+          </div>
           <Button
             variant="ghost"
             type="button"
+            className="logout"
             onClick={() => {
               void (async () => {
                 await api("/api/logout", { method: "POST" });
@@ -130,31 +127,33 @@ function Board() {
         sites.length > 0 ? (
           <div className="board-toolbar">
             <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-            <div className="board-toolbar-meta">
-              <UpdatesEntry summary={updates} onReview={() => setUpdatesOpen(true)} />
-              {scanning > 0 ? (
-                <p className="scanning-note">
-                  <ProcessingIndicator
-                    label={
-                      <>
-                        <b className="font-semibold text-foreground">{scanning}</b> scanning
-                      </>
-                    }
-                    size={12}
-                  />
-                </p>
-              ) : null}
-            </div>
+            {updates.updateCount > 0 || scanning > 0 ? (
+              <div className="board-toolbar-meta">
+                <UpdatesEntry summary={updates} onReview={() => setUpdatesOpen(true)} />
+                {scanning > 0 ? (
+                  <p className="scanning-note">
+                    <ProcessingIndicator
+                      label={
+                        <>
+                          <b className="font-medium text-foreground">{scanning}</b> scanning
+                        </>
+                      }
+                      size={12}
+                    />
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
         ) : null
       ) : (
         <div className="board-toolbar">
-          <div className="flex flex-wrap gap-2">
-            <Skeleton className="h-8 min-w-[12rem] flex-1" />
-            <Skeleton className="h-8 w-24" />
+          <div className="flex items-center gap-2">
+            <Skeleton className="h-8 min-w-0 flex-1" />
+            <Skeleton className="h-8 w-20" />
           </div>
           <div className="flex gap-1 py-0.5">
-            <Skeleton className="h-7 w-16" />
+            <Skeleton className="h-7 w-14" />
             <Skeleton className="h-7 w-24" />
             <Skeleton className="h-7 w-24" />
             <Skeleton className="h-7 w-20" />
@@ -165,7 +164,7 @@ function Board() {
         <SiteList
           sites={filteredSites}
           fleetCount={sites.length}
-          filtersActive={filtering}
+          filters={filters}
           onClearFilters={() => setFilters(emptyFilterState())}
           loaded={loaded}
           onOpen={(id) => {
@@ -214,7 +213,7 @@ function Board() {
           onSaved={refresh}
         />
       ) : null}
-    </>
+    </div>
   );
 }
 

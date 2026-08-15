@@ -67,7 +67,7 @@ export function siteRowCopy(
   const resultStamp = overview.finishedAt
     ? overview.running
       ? `Showing results from ${formatWhen(overview.finishedAt)}`
-      : `scanned ${formatAgo(overview.finishedAt)}`
+      : `Last scanned ${formatAgo(overview.finishedAt)}`
     : null;
   if (overview.emphasizePrimary) {
     return {
@@ -77,6 +77,6 @@ export function siteRowCopy(
   }
   return {
     finding: null,
-    meta: [overview.primaryLabel, overview.extra, resultStamp].filter(Boolean).join(" · "),
+    meta: [overview.extra, resultStamp].filter(Boolean).join(" · "),
   };
 }

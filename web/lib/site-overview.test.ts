@@ -153,15 +153,15 @@ test("row copy keeps the primary finding on its own line for sites that need wor
   );
   assert.deepEqual(siteRowCopy(overview, () => "8m ago"), {
     finding: "debug.log is public",
-    meta: "4 updates · scanned 8m ago",
+    meta: "4 updates · Last scanned 8m ago",
   });
 });
 
-test("row copy folds healthy copy onto the meta line", () => {
+test("row copy keeps healthy status off the finding line", () => {
   const healthy = siteOverview(row({ findings: [], rollup: "ok" }));
   assert.deepEqual(siteRowCopy(healthy, () => "7m ago"), {
     finding: null,
-    meta: "No action required · scanned 7m ago",
+    meta: "Last scanned 7m ago",
   });
 });
 
