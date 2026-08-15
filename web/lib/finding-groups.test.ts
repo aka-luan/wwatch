@@ -111,3 +111,20 @@ test("down findings skip reachable and TLS healthy checks", () => {
 test("does not invent healthy checks before the first scan", () => {
   assert.deepEqual(siteFindingSections({ origin: "https://example.com", scanned: false, findings: [] }), []);
 });
+
+test("collapses repeated site health copy into one row", () => {
+  const sections = siteFindingSections({
+    origin: "https://example.com",
+    scanned: true,
+    findings: [
+      finding("site_health", "warn", "You should use a persistent object cache"),
+      finding("site_health", "warn", "You should use a persistent object cache"),
+      finding("site_health", "warn", "You should use a persistent object cache"),
+    ],
+  });
+  const wordpress = sections.find((section) => section.id === "wordpress");
+  assert.deepEqual(
+    wordpress?.items.map((item) => item.title),
+    ["You should use a persistent object cache"],
+  );
+});

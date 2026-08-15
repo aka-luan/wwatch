@@ -63,10 +63,10 @@ export function SiteSheet({
 }) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        side="right"
-        className="h-full w-full gap-0 overflow-hidden p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
-      >
+        <SheetContent
+          side="right"
+          className="h-full w-full! gap-0 overflow-hidden p-0 data-[side=right]:w-full! data-[side=right]:max-w-none sm:data-[side=right]:max-w-lg"
+        >
         {page ? (
           <SiteActionCenter page={page} onOpenChange={onOpenChange} onEdit={onEdit} onChanged={onChanged} />
         ) : (

@@ -108,7 +108,7 @@ export function siteFindingSections({
   }
 
   return FINDING_GROUPS.flatMap((id) => {
-    const items = [...buckets[id]].sort(compareDisplayFindings);
+    const items = dedupeDisplayFindings([...buckets[id]].sort(compareDisplayFindings));
     if (!items.length) {
       return [];
     }
@@ -228,6 +228,24 @@ function compareDisplayFindings(a: DisplayFinding, b: DisplayFinding): number {
     return aActionable ? -1 : 1;
   }
   return Math.max(0, ...b.findings.map(findingWeight)) - Math.max(0, ...a.findings.map(findingWeight));
+}
+
+function dedupeDisplayFindings(items: DisplayFinding[]): DisplayFinding[] {
+  const seen = new Set<string>();
+  const out: DisplayFinding[] = [];
+  for (const item of items) {
+    if (item.compact || item.findings.some((finding) => isUpdateFinding(finding) || finding.kind === "broken_link" || finding.kind === "exposed_path")) {
+      out.push(item);
+      continue;
+    }
+    const key = `${item.title}:${item.statusLabel ?? ""}`;
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    out.push(item);
+  }
+  return out;
 }
 
 function isHttps(origin: string): boolean {
