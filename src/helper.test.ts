@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { asSiteId, parseOrigin, parsePluginRef } from "./domain.js";
-import { applyHelperRepair, applyHelperUpdate, helperPluginFile, loginUrlFrom, mintLoginLink, probeHelper } from "./helper.js";
+import { applyHelperRepair, applyHelperUpdate, fetchHelperHealth, findingsFromHealth, helperPluginFile, loginUrlFrom, mintLoginLink, parseHelperHealth, probeHelper } from "./helper.js";
 import type { ScanDeps } from "./scan.js";
 
 const site = {
@@ -95,8 +95,10 @@ test("helperPluginFile serves the WordPress plugin from disk", () => {
   assert.match(file.body, /capabilities/);
   assert.match(file.body, /wwatch_run_update/);
   assert.match(file.body, /wwatch_run_repair/);
-  assert.match(file.body, /Version: 1\.2\.0/);
+  assert.match(file.body, /wwatch_health/);
+  assert.match(file.body, /Version: 1\.3\.0/);
   assert.match(file.body, /"repair"/);
+  assert.match(file.body, /\/health/);
   assert.match(file.body, /xmlrpc_enabled/);
   assert.match(file.body, /wp-config\.php\.bak/);
   assert.match(file.body, /wwatch_xmlrpc_disabled/);
@@ -198,4 +200,113 @@ test("applyHelperRepair asks for the current plugin when the repair route is mis
       }),
     /current wwatch plugin/,
   );
+});
+
+test("parseHelperHealth reads counts and names, and ignores junk", () => {
+  assert.equal(parseHelperHealth(null), null);
+  assert.equal(parseHelperHealth("nope"), null);
+  const health = parseHelperHealth({
+    php: { version: "7.0.33", required: "7.2.24", memory_limit: "32M", memory_bytes: 32 * 1024 * 1024 },
+    wp_debug: true,
+    disallow_file_edit: false,
+    disallow_file_mods: true,
+    automatic_updater_disabled: true,
+    checksums: { matched: 1200, mismatched: 3, skipped: 40, files: ["wp-admin/about.php"] },
+    mu_plugins: ["sunrise.php", "../evil.php", 12],
+    dropins: ["object-cache.php"],
+    cron: { disabled: true, missed: 2 },
+    autoload_bytes: 1_500_000,
+    users: { administrators: 3, login_admin: true, id_1: true },
+  });
+  assert.deepEqual(health?.php, {
+    version: "7.0.33",
+    required: "7.2.24",
+    memoryLimit: "32M",
+    memoryBytes: 32 * 1024 * 1024,
+  });
+  assert.equal(health?.wpDebug, true);
+  assert.equal(health?.disallowFileEdit, false);
+  assert.equal(health?.disallowFileMods, true);
+  assert.equal(health?.automaticUpdaterDisabled, true);
+  assert.deepEqual(health?.checksums, { matched: 1200, mismatched: 3, skipped: 40 });
+  assert.deepEqual(health?.muPlugins, ["sunrise.php"]);
+  assert.deepEqual(health?.dropins, ["object-cache.php"]);
+  assert.deepEqual(health?.cron, { disabled: true, missed: 2 });
+  assert.equal(health?.autoloadBytes, 1_500_000);
+  assert.deepEqual(health?.users, { administrators: 3, loginAdmin: true, id1: true });
+});
+
+test("findingsFromHealth emits one finding per helper fact that is actually a problem", () => {
+  const health = parseHelperHealth({
+    php: { version: "7.0.33", required: "7.2.24", memory_limit: "32M", memory_bytes: 32 * 1024 * 1024 },
+    wp_debug: true,
+    disallow_file_edit: false,
+    disallow_file_mods: true,
+    automatic_updater_disabled: true,
+    checksums: { matched: 10, mismatched: 2, skipped: 1 },
+    mu_plugins: ["sunrise.php"],
+    dropins: ["object-cache.php"],
+    cron: { disabled: true, missed: 2 },
+    autoload_bytes: 2 * 1024 * 1024,
+    users: { administrators: 3, login_admin: true, id_1: true },
+  });
+  assert.ok(health);
+  const findings = findingsFromHealth(health, { httpsOrigin: true });
+  const kinds = findings.map((finding) => finding.kind);
+  assert.deepEqual(kinds, [
+    "php_runtime",
+    "wp_debug",
+    "file_edit_allowed",
+    "updates_blocked",
+    "core_checksums",
+    "hidden_code",
+    "cron",
+    "autoload_size",
+    "admin_users",
+  ]);
+  assert.equal(findings.find((f) => f.kind === "php_runtime")?.severity, "crit");
+  assert.equal(findings.find((f) => f.kind === "updates_blocked")?.severity, "warn");
+  assert.equal(findings.find((f) => f.kind === "core_checksums")?.mismatched, 2);
+});
+
+test("findingsFromHealth skips WP_DEBUG on http and skips a clean payload", () => {
+  const noisy = parseHelperHealth({
+    php: { version: "8.2.10", required: "7.2.24", memory_limit: "256M", memory_bytes: 256 * 1024 * 1024 },
+    wp_debug: true,
+    disallow_file_edit: true,
+    disallow_file_mods: false,
+    automatic_updater_disabled: false,
+    checksums: { matched: 100, mismatched: 0, skipped: 20 },
+    mu_plugins: [],
+    dropins: [],
+    cron: { disabled: false, missed: 0 },
+    autoload_bytes: 12_000,
+    users: { administrators: 1, login_admin: false, id_1: false },
+  });
+  assert.ok(noisy);
+  assert.equal(findingsFromHealth(noisy, { httpsOrigin: false }).length, 0);
+  assert.equal(findingsFromHealth(noisy, { httpsOrigin: true })[0]?.kind, "wp_debug");
+});
+
+test("findingsFromHealth treats AUTOMATIC_UPDATER_DISABLED alone as info", () => {
+  const health = parseHelperHealth({
+    disallow_file_mods: false,
+    automatic_updater_disabled: true,
+  });
+  assert.ok(health);
+  const findings = findingsFromHealth(health, { httpsOrigin: false });
+  assert.equal(findings[0]?.kind, "updates_blocked");
+  assert.equal(findings[0]?.severity, "info");
+});
+
+test("fetchHelperHealth returns null when the route is missing", async () => {
+  const missing = await fetchHelperHealth(site, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      assert.equal(String(input), "https://bakery.example/wp-json/wwatch/v1/health");
+      return new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 });
+    },
+  });
+  assert.equal(missing, null);
 });

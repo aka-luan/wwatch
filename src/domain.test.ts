@@ -146,6 +146,25 @@ test("rollupOf prefers down over auth_failed over degraded", () => {
   assert.equal(rollupOf([warn, auth]), "auth_failed");
   assert.equal(rollupOf([warn]), "degraded");
   assert.equal(rollupOf([]), "ok");
+  const checksums: Finding = {
+    kind: "core_checksums",
+    severity: "warn",
+    title: "2 core files do not match wordpress.org checksums",
+    detail: "",
+    matched: 10,
+    mismatched: 2,
+    skipped: 0,
+  };
+  assert.equal(rollupOf([checksums]), "degraded");
+  const hidden: Finding = {
+    kind: "hidden_code",
+    severity: "info",
+    title: "Drop-in object-cache.php",
+    detail: "",
+    muPlugins: [],
+    dropins: ["object-cache.php"],
+  };
+  assert.equal(rollupOf([hidden]), "ok");
 });
 
 test("displayRollup keeps the last finished rollup while a scan runs", () => {

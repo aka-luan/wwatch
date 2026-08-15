@@ -110,6 +110,60 @@ export type Finding =
       detail: string;
       test: string;
       result: "good" | "recommended" | "critical";
+    }
+  | {
+      kind: "php_runtime";
+      severity: "warn" | "crit";
+      title: string;
+      detail: string;
+      phpVersion: string;
+      requiredPhp: string;
+      memoryBytes: number | null;
+    }
+  | { kind: "wp_debug"; severity: "warn"; title: string; detail: string }
+  | { kind: "file_edit_allowed"; severity: "warn"; title: string; detail: string }
+  | {
+      kind: "updates_blocked";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      fileMods: boolean;
+      autoUpdater: boolean;
+    }
+  | {
+      kind: "core_checksums";
+      severity: "warn" | "crit";
+      title: string;
+      detail: string;
+      matched: number;
+      mismatched: number;
+      skipped: number;
+    }
+  | {
+      kind: "hidden_code";
+      severity: "info";
+      title: string;
+      detail: string;
+      muPlugins: string[];
+      dropins: string[];
+    }
+  | {
+      kind: "cron";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      disabled: boolean;
+      missed: number;
+    }
+  | { kind: "autoload_size"; severity: "warn"; title: string; detail: string; bytes: number }
+  | {
+      kind: "admin_users";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      administrators: number;
+      loginAdmin: boolean;
+      userId1: boolean;
     };
 
 export type ScanSnapshot = {

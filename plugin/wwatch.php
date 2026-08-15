@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: wwatch
- * Description: Lets the wwatch board log you into wp-admin, update plugins, themes, and core, and fix a few exposed files.
- * Version: 1.2.0
+ * Description: Lets the wwatch board log you into wp-admin, update plugins, themes, and core, fix a few exposed files, and read extra health facts.
+ * Version: 1.3.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: MIT
@@ -12,7 +12,7 @@ if (!defined("ABSPATH")) {
   exit();
 }
 
-const WWATCH_VERSION = "1.2.0";
+const WWATCH_VERSION = "1.3.0";
 const WWATCH_LOGIN_TTL = 30;
 const WWATCH_REPAIR_PATHS = [
   "/debug.log",
@@ -73,6 +73,11 @@ function wwatch_register_rest(): void
         "type" => "string",
       ],
     ],
+  ]);
+  register_rest_route("wwatch/v1", "/health", [
+    "methods" => "GET",
+    "callback" => "wwatch_health",
+    "permission_callback" => "wwatch_can_manage",
   ]);
 }
 
@@ -575,5 +580,185 @@ function wwatch_delete_under(string $dir, string $basename)
     "ok" => true,
     "deleted" => true,
     "detail" => "Deleted " . $basename . ".",
+  ];
+}
+
+function wwatch_health()
+{
+  @set_time_limit(10);
+  global $required_php_version;
+
+  $memory_limit = (string) ini_get("memory_limit");
+  $memory_bytes = function_exists("wp_convert_hr_to_bytes")
+    ? (int) wp_convert_hr_to_bytes($memory_limit)
+    : 0;
+
+  return [
+    "php" => [
+      "version" => PHP_VERSION,
+      "required" => is_string($required_php_version) ? $required_php_version : "",
+      "memory_limit" => $memory_limit,
+      "memory_bytes" => $memory_bytes,
+    ],
+    "wp_debug" => defined("WP_DEBUG") && WP_DEBUG,
+    "disallow_file_edit" => defined("DISALLOW_FILE_EDIT") && DISALLOW_FILE_EDIT,
+    "disallow_file_mods" => defined("DISALLOW_FILE_MODS") && DISALLOW_FILE_MODS,
+    "automatic_updater_disabled" => defined("AUTOMATIC_UPDATER_DISABLED") && AUTOMATIC_UPDATER_DISABLED,
+    "checksums" => wwatch_checksums(),
+    "mu_plugins" => wwatch_plugin_names("mu"),
+    "dropins" => wwatch_plugin_names("dropins"),
+    "cron" => [
+      "disabled" => defined("DISABLE_WP_CRON") && DISABLE_WP_CRON,
+      "missed" => wwatch_missed_cron(),
+    ],
+    "autoload_bytes" => wwatch_autoload_bytes(),
+    "users" => wwatch_user_facts(),
+  ];
+}
+
+function wwatch_checksums()
+{
+  global $wp_version;
+  if (!function_exists("get_core_checksums")) {
+    require_once ABSPATH . "wp-admin/includes/update.php";
+  }
+  if (!function_exists("get_core_checksums")) {
+    return null;
+  }
+
+  $checksums = get_core_checksums($wp_version, get_locale());
+  if (!is_array($checksums) || !$checksums) {
+    return null;
+  }
+
+  $matched = 0;
+  $mismatched = 0;
+  $skipped = 0;
+  foreach ($checksums as $file => $checksum) {
+    if (!is_string($file) || !is_string($checksum) || strpos($file, "..") !== false) {
+      $skipped += 1;
+      continue;
+    }
+    if (strpos($file, "wp-content/") === 0) {
+      $skipped += 1;
+      continue;
+    }
+    $path = ABSPATH . $file;
+    if (!is_file($path)) {
+      $mismatched += 1;
+      continue;
+    }
+    if (md5_file($path) === $checksum) {
+      $matched += 1;
+    } else {
+      $mismatched += 1;
+    }
+  }
+
+  return [
+    "matched" => $matched,
+    "mismatched" => $mismatched,
+    "skipped" => $skipped,
+  ];
+}
+
+function wwatch_plugin_names(string $kind): array
+{
+  if (!function_exists("get_mu_plugins") || !function_exists("get_dropins")) {
+    require_once ABSPATH . "wp-admin/includes/plugin.php";
+  }
+  $items = $kind === "dropins" ? get_dropins() : get_mu_plugins();
+  if (!is_array($items)) {
+    return [];
+  }
+  $names = [];
+  foreach (array_keys($items) as $name) {
+    if (!is_string($name) || $name === "" || strpos($name, "..") !== false) {
+      continue;
+    }
+    $names[] = $name;
+    if (count($names) >= 40) {
+      break;
+    }
+  }
+  return $names;
+}
+
+function wwatch_missed_cron(): int
+{
+  if (!function_exists("_get_cron_array")) {
+    return 0;
+  }
+  $crons = _get_cron_array();
+  if (!is_array($crons)) {
+    return 0;
+  }
+  $now = time();
+  $grace = defined("WP_CRON_LOCK_TIMEOUT") ? (int) WP_CRON_LOCK_TIMEOUT : 60;
+  $missed = 0;
+  foreach ($crons as $timestamp => $hooks) {
+    if (!is_numeric($timestamp) || (int) $timestamp >= $now - $grace) {
+      continue;
+    }
+    if (!is_array($hooks)) {
+      continue;
+    }
+    foreach ($hooks as $events) {
+      if (is_array($events)) {
+        $missed += count($events);
+      }
+    }
+    if ($missed >= 99) {
+      return 99;
+    }
+  }
+  return $missed;
+}
+
+function wwatch_autoload_bytes(): int
+{
+  global $wpdb;
+  if (!isset($wpdb) || !is_object($wpdb)) {
+    return 0;
+  }
+  $values = function_exists("wp_autoload_values_to_autoload")
+    ? wp_autoload_values_to_autoload()
+    : ["yes"];
+  if (!is_array($values) || !$values) {
+    $values = ["yes"];
+  }
+  $clean = [];
+  foreach ($values as $value) {
+    if (is_string($value) && $value !== "") {
+      $clean[] = $value;
+    }
+  }
+  if (!$clean) {
+    return 0;
+  }
+  $placeholders = implode(",", array_fill(0, count($clean), "%s"));
+  $sql = $wpdb->prepare(
+    "SELECT COALESCE(SUM(LENGTH(option_value)), 0) FROM {$wpdb->options} WHERE autoload IN ($placeholders)",
+    ...$clean
+  );
+  if (!is_string($sql)) {
+    return 0;
+  }
+  return (int) $wpdb->get_var($sql);
+}
+
+function wwatch_user_facts(): array
+{
+  $administrators = 0;
+  $counts = count_users();
+  if (is_array($counts) && isset($counts["avail_roles"]["administrator"])) {
+    $administrators = (int) $counts["avail_roles"]["administrator"];
+  }
+  $admin = get_user_by("login", "admin");
+  $id1 = get_user_by("id", 1);
+  return [
+    "administrators" => $administrators,
+    "login_admin" => $admin instanceof WP_User,
+    "id_1" => $id1 instanceof WP_User,
   ];
 }
