@@ -48,8 +48,12 @@ export function updateCount(findings: readonly Finding[]): number {
   return findings.filter(isUpdateFinding).length;
 }
 
-function findingWeight(finding: Finding): number {
+export function findingWeight(finding: Finding): number {
   return SEVERITY_WEIGHT[finding.severity] + (KIND_WEIGHT[finding.kind] ?? 0);
+}
+
+export function compareFindings(a: Finding, b: Finding): number {
+  return findingWeight(b) - findingWeight(a);
 }
 
 export function primaryFindingOf(findings: readonly Finding[]): Finding | null {

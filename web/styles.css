@@ -129,7 +129,6 @@ body {
   min-height: 100dvh;
 }
 
-body.drawer-open,
 body.modal-open {
   overflow: hidden;
 }
@@ -161,10 +160,6 @@ body.modal-open {
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.drawer header .actions {
-  justify-content: flex-end;
 }
 
 .stats {
@@ -204,90 +199,9 @@ body.modal-open {
   font-weight: 600;
 }
 
-.drawer {
-  position: fixed;
-  inset: 0 0 0 auto;
-  width: min(520px, 100%);
-  background: var(--card);
-  border-left: 1px solid var(--border);
-  overflow: auto;
-  overscroll-behavior: contain;
-  padding: 24px;
-  padding-bottom: max(24px, env(safe-area-inset-bottom));
-  z-index: 20;
-}
-
-.drawer header {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: start;
-  position: sticky;
-  top: 0;
-  z-index: 1;
-  background: var(--card);
-  margin: -24px -24px 16px;
-  padding: 16px 24px;
-  padding-top: max(16px, env(safe-area-inset-top));
-  border-bottom: 1px solid var(--border);
-}
-
-.drawer h2 {
-  margin: 0;
-  font-size: 18px;
-}
-
-.drawer .origin,
 .host {
   color: var(--muted-foreground);
   word-break: break-all;
-}
-
-.finding,
-.plugin,
-.scan {
-  border-top: 1px solid var(--border);
-  padding: 12px 0;
-}
-
-.plugin,
-.finding.has-action {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.plugin-actions {
-  display: flex;
-  flex-shrink: 0;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px;
-}
-
-.plugin button,
-.finding.has-action button {
-  flex-shrink: 0;
-}
-
-.finding strong,
-.plugin strong {
-  overflow-wrap: anywhere;
-}
-
-.scan {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: baseline;
-  color: var(--muted-foreground);
-}
-
-.finding p,
-.plugin p {
-  margin: 4px 0 0;
-  color: var(--muted-foreground);
 }
 
 .modal {
@@ -336,13 +250,6 @@ label {
   font-size: 12px;
 }
 
-.row-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 16px;
-}
-
 .mono {
   font-family: var(--font-mono);
 }
@@ -362,21 +269,13 @@ a {
     padding-bottom: 12px;
   }
 
-  .top .actions,
-  .row-actions,
-  .drawer .actions {
+  .top .actions {
     flex-wrap: wrap;
   }
 
-  .top .actions > *,
-  .row-actions > *,
-  .drawer .actions > * {
+  .top .actions > * {
     flex: 1;
     min-height: 44px;
-  }
-
-  .row-actions {
-    justify-content: stretch;
   }
 
   .stats {
@@ -392,26 +291,6 @@ a {
     margin-bottom: 32px;
   }
 
-  .drawer {
-    width: 100%;
-    border-left: none;
-    padding: 20px;
-    padding-left: max(20px, env(safe-area-inset-left));
-    padding-right: max(20px, env(safe-area-inset-right));
-    padding-bottom: max(20px, env(safe-area-inset-bottom));
-  }
-
-  .drawer header {
-    flex-wrap: wrap;
-    margin: -20px calc(-1 * max(20px, env(safe-area-inset-right))) 16px calc(-1 * max(20px, env(safe-area-inset-left)));
-    padding: 12px max(20px, env(safe-area-inset-right)) 12px max(20px, env(safe-area-inset-left));
-    padding-top: max(12px, env(safe-area-inset-top));
-  }
-
-  .drawer header .actions {
-    width: 100%;
-  }
-
   .modal {
     padding: 16px;
     padding-top: max(16px, env(safe-area-inset-top));
@@ -425,11 +304,6 @@ a {
     margin-inline: auto;
   }
 
-  .plugin {
-    flex-wrap: wrap;
-  }
-
-  .plugin button,
   [data-slot="button"] {
     min-height: 44px;
   }

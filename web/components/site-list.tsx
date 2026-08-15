@@ -35,8 +35,8 @@ export function SiteList({
         <h2>No sites yet</h2>
         <p>
           Add a WordPress site you already admin. wwatch talks to it with an Application Password from
-          Users → Profile. Scans install nothing on the site. Log in from the drawer needs the optional
-          wwatch plugin.
+          Users → Profile. Scans install nothing on the site. WP Admin from the site panel needs the
+          optional wwatch plugin.
         </p>
       </div>
     );

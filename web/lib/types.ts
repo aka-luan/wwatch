@@ -24,7 +24,11 @@ export type Finding = {
   plugin?: string;
   theme?: string;
   latest?: string;
+  installed?: string;
   path?: string;
+  url?: string;
+  httpStatus?: number | null;
+  daysLeft?: number;
 };
 
 export type ScanSnapshot = {

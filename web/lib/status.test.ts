@@ -4,6 +4,7 @@ import {
   SITE_STATUSES,
   SITE_STATUS_LABEL,
   rollupLabel,
+  siteStatusFromCounts,
   siteStatusFromFindings,
   siteStatusFromRollup,
   siteStatusFromSeverity,
@@ -45,6 +46,12 @@ test("findings derive critical vs attention instead of collapsing both into degr
   assert.equal(siteStatusFromFindings([{ severity: "info" }]), "healthy");
   assert.equal(siteStatusFromFindings([{ severity: "warn" }]), "attention");
   assert.equal(siteStatusFromFindings([{ severity: "warn" }, { severity: "crit" }]), "critical");
+});
+
+test("scan history counts use the same status model", () => {
+  assert.equal(siteStatusFromCounts({ crit: 0, warn: 0 }), "healthy");
+  assert.equal(siteStatusFromCounts({ crit: 0, warn: 2 }), "attention");
+  assert.equal(siteStatusFromCounts({ crit: 1, warn: 4 }), "critical");
 });
 
 test("site status comes from the latest completed scan, not a running job", () => {

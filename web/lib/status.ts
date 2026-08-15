@@ -46,17 +46,27 @@ export function siteStatusFromSeverity(severity: string): SiteStatus {
   }
 }
 
+export function siteStatusFromCounts(counts: { crit: number; warn: number }): SiteStatus {
+  if (counts.crit > 0) {
+    return "critical";
+  }
+  if (counts.warn > 0) {
+    return "attention";
+  }
+  return "healthy";
+}
+
 export function siteStatusFromFindings(findings: readonly { severity: string }[]): SiteStatus {
-  let attention = false;
+  let crit = 0;
+  let warn = 0;
   for (const finding of findings) {
     if (finding.severity === "crit") {
-      return "critical";
-    }
-    if (finding.severity === "warn") {
-      attention = true;
+      crit += 1;
+    } else if (finding.severity === "warn") {
+      warn += 1;
     }
   }
-  return attention ? "attention" : "healthy";
+  return siteStatusFromCounts({ crit, warn });
 }
 
 export function siteStatusOf(row: { latest: { findings: readonly { severity: string }[] } | null }): SiteStatus {
