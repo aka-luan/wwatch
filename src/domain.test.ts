@@ -9,6 +9,7 @@ import {
   parseHelperInfo,
   parseOrigin,
   parsePluginRef,
+  parseRepairTarget,
   parseThemeSlug,
   parseUpdateTarget,
   pluginSlug,
@@ -65,11 +66,19 @@ test("parseUpdateTarget reads plugin, theme, core, and all", () => {
 });
 
 test("helperFromCapabilities ignores unknown capability names", () => {
-  assert.deepEqual(helperFromCapabilities({ version: "1.1.0", capabilities: ["login", "repair", "update"] }), {
+  assert.deepEqual(helperFromCapabilities({ version: "1.1.0", capabilities: ["login", "health", "update"] }), {
     kind: "installed",
     version: "1.1.0",
     capabilities: ["login", "update"],
   });
+  assert.deepEqual(
+    helperFromCapabilities({ version: "1.2.0", capabilities: ["login", "update", "repair"] }),
+    {
+      kind: "installed",
+      version: "1.2.0",
+      capabilities: ["login", "update", "repair"],
+    },
+  );
   assert.equal(parseHelperInfo({ kind: "missing" })?.kind, "missing");
   assert.equal(helperCan({ kind: "missing" }, "update"), false);
   assert.equal(
@@ -80,6 +89,38 @@ test("helperFromCapabilities ignores unknown capability names", () => {
     helperCan({ kind: "installed", version: "1.1.0", capabilities: ["login", "update"] }, "update"),
     true,
   );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.1.0", capabilities: ["login", "update"] }, "repair"),
+    false,
+  );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.2.0", capabilities: ["login", "update", "repair"] }, "repair"),
+    true,
+  );
+});
+
+test("parseRepairTarget allowlists exposed paths and xmlrpc", () => {
+  assert.deepEqual(parseRepairTarget({ kind: "xmlrpc" }), { kind: "xmlrpc" });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/debug.log" }), {
+    kind: "exposed_path",
+    path: "/debug.log",
+  });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/wp-content/debug.log" }), {
+    kind: "exposed_path",
+    path: "/wp-content/debug.log",
+  });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php.bak" }), {
+    kind: "exposed_path",
+    path: "/wp-config.php.bak",
+  });
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php" }), /cannot be repaired/);
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "/.git/HEAD" }), /cannot be repaired/);
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "../wp-config.php.bak" }), /cannot be repaired/);
+  assert.throws(
+    () => parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php.bak/../wp-config.php" }),
+    /cannot be repaired/,
+  );
+  assert.throws(() => parseRepairTarget({ kind: "plugin" }), /exposed_path or xmlrpc/);
 });
 
 test("compareVersions does not treat 6.4.10 as behind 6.4.2", () => {

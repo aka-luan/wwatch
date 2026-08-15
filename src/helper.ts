@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   helperFromCapabilities,
   type HelperInfo,
+  type RepairTarget,
   type UpdateTarget,
 } from "./domain.js";
 import type { ScanDeps } from "./scan.js";
@@ -63,17 +64,26 @@ export async function applyHelperUpdate(
   deps: ScanDeps,
 ): Promise<{ detail: string }> {
   if (target.kind === "all") {
-    const plugins = await postUpdate(site, deps, { kind: "plugins" });
-    const themes = await postUpdate(site, deps, { kind: "themes" });
+    const plugins = await postHelper(site, deps, "/wp-json/wwatch/v1/update", { kind: "plugins" }, "update");
+    const themes = await postHelper(site, deps, "/wp-json/wwatch/v1/update", { kind: "themes" }, "update");
     return { detail: [plugins.detail, themes.detail].filter(Boolean).join(" ") };
   }
   if (target.kind === "plugin") {
-    return postUpdate(site, deps, { kind: "plugin", plugin: target.plugin });
+    return postHelper(site, deps, "/wp-json/wwatch/v1/update", { kind: "plugin", plugin: target.plugin }, "update");
   }
   if (target.kind === "theme") {
-    return postUpdate(site, deps, { kind: "theme", theme: target.theme });
+    return postHelper(site, deps, "/wp-json/wwatch/v1/update", { kind: "theme", theme: target.theme }, "update");
   }
-  return postUpdate(site, deps, { kind: "core" });
+  return postHelper(site, deps, "/wp-json/wwatch/v1/update", { kind: "core" }, "update");
+}
+
+export async function applyHelperRepair(
+  site: StoredSite,
+  target: RepairTarget,
+  deps: ScanDeps,
+): Promise<{ detail: string }> {
+  const body = target.kind === "xmlrpc" ? { kind: "xmlrpc" } : { kind: "exposed_path", path: target.path };
+  return postHelper(site, deps, "/wp-json/wwatch/v1/repair", body, "repair");
 }
 
 export function helperPluginFile(): { filename: string; body: string } {
@@ -110,15 +120,17 @@ export function loginUrlFrom(origin: string, body: string): string {
   return `${origin}/?wwatch_login=${token}`;
 }
 
-async function postUpdate(
+async function postHelper(
   site: StoredSite,
   deps: ScanDeps,
+  path: "/wp-json/wwatch/v1/update" | "/wp-json/wwatch/v1/repair",
   body: Record<string, string>,
+  verb: "update" | "repair",
 ): Promise<{ detail: string }> {
   const hit = await helperRequest(
     site,
     deps,
-    "/wp-json/wwatch/v1/update",
+    path,
     {
       method: "POST",
       headers: { "content-type": "application/json" },
@@ -130,35 +142,35 @@ async function postUpdate(
     throw new Error(`Site did not respond: ${hit.detail}`);
   }
   if (hit.status === 404 || isMissingRoute(hit.body)) {
-    throw new Error("This WordPress site needs the current wwatch plugin to update from the board.");
+    throw new Error(`This WordPress site needs the current wwatch plugin to ${verb} from the board.`);
   }
   if (hit.status === 401) {
     throw new Error("WordPress did not accept the Application Password.");
   }
   if (hit.status === 403) {
     throw new Error(
-      "This WordPress user cannot update from the board. Use an administrator Application Password.",
+      `This WordPress user cannot ${verb} from the board. Use an administrator Application Password.`,
     );
   }
   if (hit.status !== 200) {
-    throw new Error(wpErrorMessage(hit.body, `Update failed (${hit.status})`));
+    throw new Error(wpErrorMessage(hit.body, `${verb === "repair" ? "Repair" : "Update"} failed (${hit.status})`));
   }
-  return { detail: updateDetail(hit.body) };
+  return { detail: helperDetail(hit.body, verb === "repair" ? "Repaired." : "Updated.") };
 }
 
-function updateDetail(body: string): string {
+function helperDetail(body: string, fallback: string): string {
   try {
     const json = JSON.parse(body) as { detail?: unknown; ok?: unknown };
     if (typeof json.detail === "string" && json.detail.trim()) {
       return json.detail.trim();
     }
     if (json.ok === true) {
-      return "Updated.";
+      return fallback;
     }
   } catch {
-    return "Updated.";
+    return fallback;
   }
-  return "Updated.";
+  return fallback;
 }
 
 function wpErrorMessage(body: string, fallback: string): string {

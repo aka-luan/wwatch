@@ -2,7 +2,7 @@
 
 A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests.
 
-Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login and one-click plugin, theme, and core updates need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the drawer. Core is a separate button.
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the drawer. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0).
 
 ## Run locally
 
@@ -58,15 +58,17 @@ If connect says WordPress did not see the password, the host or CDN dropped the 
 
 wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the drawer and click **Edit**. The origin cannot change; scan history stays.
 
-### Log in and update from the board
+### Log in, update, and fix from the board
 
-Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does both:
+Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does those jobs, and it can delete a short allowlist of public files:
 
-1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo).
+1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo). Replace 1.1.0 if that is already installed. Current helper is 1.2.0.
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
-3. Scan the site. The drawer then shows **Log in**, **Update** on each plugin/theme/core finding, and **Update all** for plugins and themes.
+3. Scan the site. The drawer then shows **Log in**, **Update** on each plugin/theme/core finding, **Update all** for plugins and themes, and **Fix** on findings the helper can actually repair.
 
-Log in mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. Updates call `POST /wp-json/wwatch/v1/update` as that same user, then the board scans again. If the plugin is missing or old, the board says so instead of opening a dead tab or pretending core REST can upgrade.
+Log in mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. Updates call `POST /wp-json/wwatch/v1/update` as that same user, then the board scans again. Fix calls `POST /wp-json/wwatch/v1/repair` the same way. If the plugin is missing or old, the board says so instead of opening a dead tab or pretending core REST can upgrade. A 1.1.0 helper still updates and hides Fix.
+
+Fix is allowlisted. It can delete public `debug.log` files, `readme.html`, `license.txt`, and the backup wp-config names the scan already probes (`wp-config.php.bak`, `.save`, `.old`). It never deletes `wp-config.php`. XML-RPC is disabled through WordPress (`xmlrpc_enabled` → false) and left on disk. `.git` stays a human job.
 
 Sites with `DISALLOW_FILE_MODS` cannot update from the board. The helper will say so.
 
@@ -90,7 +92,7 @@ A new down, auth failure, or public `wp-config` backup, `debug.log`, or `.git` s
 - Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
 - Email: `RESEND_API_KEY` and `ALERT_EMAIL`. Optional `ALERT_FROM`. The default sender is Resend's `beth.t@example.com`, which only delivers to the address on that Resend account.
 
-Core REST still cannot upgrade a plugin. Activate and deactivate stay on `/wp/v2/plugins`. Updates go through the helper.
+Core REST still cannot upgrade a plugin. Activate and deactivate stay on `/wp/v2/plugins`. Updates and Fix go through the helper.
 
 ## Checks
 

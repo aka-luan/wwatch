@@ -17,9 +17,10 @@ import {
   type SitePage,
   type UpdateInput,
   type UpdateTarget,
+  type RepairTarget,
 } from "./domain.js";
 import { sendAlerts, type AlertConfig } from "./alert.js";
-import { applyHelperUpdate, mintLoginLink } from "./helper.js";
+import { applyHelperRepair, applyHelperUpdate, mintLoginLink } from "./helper.js";
 import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
 import { Store, type StoredSite } from "./store.js";
 
@@ -161,6 +162,23 @@ export class Fleet {
       throw new Error("Unknown site");
     }
     const result = await applyHelperUpdate(site, target, this.#deps);
+    const scan = await this.startScan(id, defer);
+    return { detail: result.detail, id: scan.id };
+  }
+
+  async applyRepair(
+    id: SiteId,
+    target: RepairTarget,
+    defer: Defer = (work) => void work,
+  ): Promise<{ detail: string; id: ScanId }> {
+    if (await this.#store.getJob(id)) {
+      throw new Error("Wait for the current scan to finish before repairing.");
+    }
+    const site = await this.#store.getSite(id);
+    if (!site) {
+      throw new Error("Unknown site");
+    }
+    const result = await applyHelperRepair(site, target, this.#deps);
     const scan = await this.startScan(id, defer);
     return { detail: result.detail, id: scan.id };
   }
