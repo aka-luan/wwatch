@@ -162,19 +162,63 @@ body.modal-open {
   gap: 8px;
 }
 
-.stats {
+.board-toolbar {
   display: flex;
-  flex-wrap: wrap;
-  gap: 12px 24px;
+  flex-direction: column;
+  gap: 10px;
   padding: 16px var(--gutter) 0;
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
-  color: var(--muted-foreground);
 }
 
-.stats b {
+.site-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.status-filter-scroll {
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.status-filter-scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.scanning-note {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 13px;
+}
+
+.scanning-note b {
   color: var(--foreground);
   font-weight: 600;
+}
+
+.empty-compact {
+  margin-top: 24px;
+  margin-bottom: 24px;
+}
+
+.empty-compact h2 {
+  font-size: 16px;
+}
+
+.link-button {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: var(--ring);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.link-button:hover {
+  color: var(--foreground);
 }
 
 .site-list {
@@ -278,7 +322,7 @@ a {
     min-height: 44px;
   }
 
-  .stats {
+  .board-toolbar {
     padding-top: 12px;
   }
 
