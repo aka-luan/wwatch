@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
 import { FindingRow } from "@/components/finding-row";
+import { SiteList } from "@/components/site-list";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import {
@@ -26,11 +27,10 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
-import { ago, host } from "@/lib/format";
+import { ago } from "@/lib/format";
 import { helperCan, isRepairablePath } from "@/lib/helper";
-import { rollupLabel, siteStatusFromRollup, siteStatusFromSeverity } from "@/lib/status";
+import { rollupLabel, siteStatusFromRollup, siteStatusFromSeverity, siteStatusOf } from "@/lib/status";
 import type { Finding, HelperInfo, InstalledPlugin, OverviewRow, ScanSummary, SitePage } from "@/lib/types";
 
 export function App() {
@@ -171,9 +171,10 @@ function Board() {
 }
 
 function Stats({ sites, loaded }: { sites: OverviewRow[]; loaded: boolean }) {
-  const problems = sites.filter(
-    (row) => row.rollup === "degraded" || row.rollup === "down" || row.rollup === "auth_failed",
-  ).length;
+  const problems = sites.filter((row) => {
+    const status = siteStatusOf(row);
+    return status === "critical" || status === "attention";
+  }).length;
   const scanning = sites.filter((row) => row.running).length;
   if (!loaded) {
     return (
@@ -196,143 +197,6 @@ function Stats({ sites, loaded }: { sites: OverviewRow[]; loaded: boolean }) {
         <b>{scanning}</b> scanning
       </span>
     </section>
-  );
-}
-
-function SiteList({
-  sites,
-  loaded,
-  onOpen,
-}: {
-  sites: OverviewRow[];
-  loaded: boolean;
-  onOpen: (id: string) => void;
-}) {
-  if (!loaded) {
-    return (
-      <div className="board-wrap">
-        <Skeleton className="mb-2 h-4 w-40" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="mt-2 h-12 w-full" />
-      </div>
-    );
-  }
-  if (sites.length === 0) {
-    return (
-      <div className="empty">
-        <h2>No sites yet</h2>
-        <p>
-          Add a WordPress site you already admin. wwatch talks to it with an Application Password from
-          Users → Profile. Scans install nothing on the site. Log in from the drawer needs the optional
-          wwatch plugin.
-        </p>
-      </div>
-    );
-  }
-  return (
-    <>
-      <div className="board-wrap">
-        <table>
-          <thead>
-            <tr>
-              <th>Site</th>
-              <th>Status</th>
-              <th>Core</th>
-              <th>Plugins</th>
-              <th>Findings</th>
-              <th>Last scan</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sites.map((row) => {
-              const summary = rowSummary(row);
-              return (
-                <tr
-                  key={row.site.id}
-                  className="row"
-                  onClick={() => onOpen(row.site.id)}
-                >
-                  <td>
-                    <div>{row.site.name}</div>
-                    <div className="mono host">{host(row.site.origin)}</div>
-                  </td>
-                  <td>
-                    <StatusPills row={row} />
-                  </td>
-                  <td className="mono">{row.latest?.coreVersion ?? "—"}</td>
-                  <td>
-                    {summary.plugins.length
-                      ? `${summary.plugins.length} installed${summary.updates ? `, ${summary.updates} updates` : ""}`
-                      : "—"}
-                  </td>
-                  <td>{summary.findings.length ? `${summary.crit} crit · ${summary.warn} warn` : "—"}</td>
-                  <td>{scanLabel(row)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      <div className="board-cards">
-        {sites.map((row) => {
-          const summary = rowSummary(row);
-          const pluginLabel = summary.plugins.length
-            ? `${summary.plugins.length} plugin${summary.plugins.length === 1 ? "" : "s"}${
-                summary.updates ? `, ${summary.updates} update${summary.updates === 1 ? "" : "s"}` : ""
-              }`
-            : "No plugins";
-          const findingLabel = summary.findings.length
-            ? `${summary.crit} crit · ${summary.warn} warn`
-            : "No findings";
-          const coreLabel = row.latest?.coreVersion ? `WP ${row.latest.coreVersion}` : "No core version";
-          return (
-            <button
-              key={row.site.id}
-              type="button"
-              className="site-card"
-              onClick={() => onOpen(row.site.id)}
-            >
-              <div className="site-card-head">
-                <div>
-                  <div className="site-card-name">{row.site.name}</div>
-                  <div className="mono host">{host(row.site.origin)}</div>
-                </div>
-                <div className="site-card-pills">
-                  <StatusPills row={row} />
-                </div>
-              </div>
-              <div className="site-card-meta">
-                <span className="mono">{coreLabel}</span>
-                <span>{pluginLabel}</span>
-                <span>{findingLabel}</span>
-                <span>{scanLabel(row)}</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
-    </>
-  );
-}
-
-function StatusPills({ row }: { row: OverviewRow }) {
-  return (
-    <span className="inline-flex flex-wrap items-center gap-1">
-      <StatusBadge status={siteStatusFromRollup(row.rollup)}>{rollupLabel(row.rollup)}</StatusBadge>
-      {row.running && row.latest ? (
-        <Tooltip>
-          <TooltipTrigger render={<span className="inline-flex" />}>
-            <Badge
-              variant="info"
-              className="h-auto px-2 py-0.5 font-mono text-[11px] font-semibold tracking-[0.04em] uppercase"
-            >
-              scan
-            </Badge>
-          </TooltipTrigger>
-          <TooltipContent>A scan is running. The last finished snapshot is still shown.</TooltipContent>
-        </Tooltip>
-      ) : null}
-    </span>
   );
 }
 
@@ -960,23 +824,4 @@ function EditSiteDialog({
       </DialogContent>
     </Dialog>
   );
-}
-
-function rowSummary(row: OverviewRow) {
-  const findings = row.latest?.findings ?? [];
-  const plugins = row.latest?.plugins ?? [];
-  return {
-    findings,
-    plugins,
-    updates: findings.filter((finding) => finding.kind === "plugin_update").length,
-    crit: findings.filter((finding) => finding.severity === "crit").length,
-    warn: findings.filter((finding) => finding.severity === "warn").length,
-  };
-}
-
-function scanLabel(row: OverviewRow) {
-  if (row.running) {
-    return row.latest ? `scanning · ${ago(row.latest.finishedAt)}` : "scanning…";
-  }
-  return ago(row.latest?.finishedAt);
 }
