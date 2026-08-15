@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
   emptyFilterState,
+  filterEmptyHeading,
   filterSites,
   filtersActive,
   removeSecondaryFilter,
@@ -183,6 +184,24 @@ test("multiple secondary filters require every selected facet", () => {
   assert.deepEqual(
     filterSites(rows, { ...emptyFilterState(), secondary: ["updates", "security"] }).map((item) => item.site.id),
     ["both"],
+  );
+});
+
+test("filter empty headings name the active status filter", () => {
+  assert.equal(filterEmptyHeading(emptyFilterState()), "No sites match these filters");
+  assert.equal(filterEmptyHeading({ ...emptyFilterState(), status: "critical" }), "No critical sites");
+  assert.equal(
+    filterEmptyHeading({ ...emptyFilterState(), status: "attention" }),
+    "No sites needing attention",
+  );
+  assert.equal(filterEmptyHeading({ ...emptyFilterState(), status: "healthy" }), "No healthy sites");
+  assert.equal(
+    filterEmptyHeading({ ...emptyFilterState(), status: "critical", query: "bakery" }),
+    "No sites match these filters",
+  );
+  assert.equal(
+    filterEmptyHeading({ ...emptyFilterState(), status: "healthy", secondary: ["updates"] }),
+    "No sites match these filters",
   );
 });
 

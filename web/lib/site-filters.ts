@@ -44,6 +44,22 @@ export function primaryFilterLabel(filter: PrimaryStatusFilter): string {
   return SITE_STATUS_LABEL[filter];
 }
 
+export function filterEmptyHeading(state: SiteFilterState): string {
+  if (state.query.trim() !== "" || state.secondary.length > 0) {
+    return "No sites match these filters";
+  }
+  switch (state.status) {
+    case "critical":
+      return "No critical sites";
+    case "attention":
+      return "No sites needing attention";
+    case "healthy":
+      return "No healthy sites";
+    default:
+      return "No sites match these filters";
+  }
+}
+
 export function statusFilterCounts(rows: readonly OverviewRow[]): StatusFilterCounts {
   const counts: StatusFilterCounts = {
     all: rows.length,
