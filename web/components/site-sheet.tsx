@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDownIcon, ExternalLinkIcon, LogInIcon, RefreshCwIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, LogInIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
-import { FindingRow } from "@/components/finding-row";
+import { EmptyNote, FindingRow, RowAction } from "@/components/finding-row";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import {
@@ -109,6 +109,7 @@ function SiteActionCenter({
   });
   const [removeOpen, setRemoveOpen] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
+  const [scanBusy, setScanBusy] = useState(false);
   const [helperError, setHelperError] = useState("");
   const [pluginChange, setPluginChange] = useState<{
     plugin: string;
@@ -120,6 +121,8 @@ function SiteActionCenter({
 
   useEffect(() => {
     setHelperError("");
+    setLoginBusy(false);
+    setScanBusy(false);
   }, [page.site.id]);
 
   async function applyHelper(path: string, body: unknown, failed: string) {
@@ -171,6 +174,7 @@ function SiteActionCenter({
               variant="outline"
               size="sm"
               disabled={loginBusy}
+              aria-busy={loginBusy}
               onClick={() => {
                 void (async () => {
                   setHelperError("");
@@ -195,22 +199,33 @@ function SiteActionCenter({
                 })();
               }}
             >
-              <LogInIcon />
+              {loginBusy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : <LogInIcon />}
               WP Admin
             </Button>
           ) : null}
           <Button
             variant="outline"
             size="sm"
+            disabled={scanBusy}
+            aria-busy={scanBusy}
             onClick={() => {
               void (async () => {
-                await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-                toast.success("Scan started");
-                await onChanged();
+                setScanBusy(true);
+                try {
+                  await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
+                  toast.success("Scan started");
+                  await onChanged();
+                } finally {
+                  setScanBusy(false);
+                }
               })();
             }}
           >
-            <RefreshCwIcon />
+            {scanBusy ? (
+              <Loader2Icon className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <RefreshCwIcon />
+            )}
             Scan now
           </Button>
         </div>
@@ -258,7 +273,7 @@ function SiteActionCenter({
               </section>
             ))
           ) : (
-            <p className="help pt-4">No action required on the last scan.</p>
+            <EmptyNote tone="positive">No action required on the last scan.</EmptyNote>
           )
         ) : (
           <p className="help pt-4">{overview.primaryLabel}.</p>
@@ -268,7 +283,7 @@ function SiteActionCenter({
           {previous.length ? (
             previous.map((scan) => <ScanHistoryRow key={scan.id} scan={scan} />)
           ) : (
-            <p className="help">No earlier scans.</p>
+            <EmptyNote>No earlier scans.</EmptyNote>
           )}
         </SecondaryBlock>
         <SecondaryBlock title="Site configuration">
@@ -292,7 +307,7 @@ function SiteActionCenter({
               />
             ))
           ) : (
-            <p className="help">No plugin list yet. Scan with a working Application Password.</p>
+            <EmptyNote>No plugin list yet. Scan with a working Application Password.</EmptyNote>
           )}
         </SecondaryBlock>
         <SecondaryBlock title="Settings">
@@ -473,9 +488,9 @@ function rowAction(
 ): ReactNode {
   if (item.findings.length > 1 && item.findings.every((finding) => finding.kind === "broken_link")) {
     return (
-      <Button variant="outline" size="sm" type="button" onClick={() => onViewLinks(item.findings)}>
+      <RowAction type="button" onClick={() => onViewLinks(item.findings)}>
         View links
-      </Button>
+      </RowAction>
     );
   }
   const finding = item.findings[0];
@@ -495,9 +510,7 @@ function findingAction(
   if (helperCan(helper, "update")) {
     if (finding.kind === "plugin_update" && finding.plugin) {
       return (
-        <Button
-          variant="outline"
-          size="sm"
+        <RowAction
           type="button"
           onClick={() =>
             confirm({
@@ -509,14 +522,12 @@ function findingAction(
           }
         >
           Update
-        </Button>
+        </RowAction>
       );
     }
     if (finding.kind === "theme_update" && finding.theme) {
       return (
-        <Button
-          variant="outline"
-          size="sm"
+        <RowAction
           type="button"
           onClick={() =>
             confirm({
@@ -528,14 +539,12 @@ function findingAction(
           }
         >
           Update
-        </Button>
+        </RowAction>
       );
     }
     if (finding.kind === "core_update") {
       return (
-        <Button
-          variant="outline"
-          size="sm"
+        <RowAction
           type="button"
           onClick={() =>
             confirm({
@@ -547,16 +556,14 @@ function findingAction(
           }
         >
           Update
-        </Button>
+        </RowAction>
       );
     }
   }
   if (helperCan(helper, "repair")) {
     if (finding.kind === "xmlrpc_open") {
       return (
-        <Button
-          variant="outline"
-          size="sm"
+        <RowAction
           type="button"
           onClick={() =>
             confirm({
@@ -568,14 +575,12 @@ function findingAction(
           }
         >
           Fix
-        </Button>
+        </RowAction>
       );
     }
     if (finding.kind === "exposed_path" && isRepairablePath(finding.path)) {
       return (
-        <Button
-          variant="outline"
-          size="sm"
+        <RowAction
           type="button"
           onClick={() =>
             confirm({
@@ -587,7 +592,7 @@ function findingAction(
           }
         >
           Fix
-        </Button>
+        </RowAction>
       );
     }
   }
@@ -597,7 +602,7 @@ function findingAction(
 function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
   const status = siteStatusFromCounts(scan.counts);
   return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-2 text-[13px] text-muted-foreground">
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted/30">
       <span className="inline-flex items-center gap-2 text-foreground">
         <StatusDot status={status} decorative />
         {SITE_STATUS_LABEL[status]}
@@ -626,20 +631,20 @@ function PluginRow({
   const update = findings.find((item) => item.kind === "plugin_update" && item.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
   return (
-    <div className="flex flex-col gap-2 border-t border-border py-3 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 border-t border-border py-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="[overflow-wrap:anywhere]">
           <strong>{plugin.name}</strong>{" "}
           <Badge
             variant="outline"
-            className="h-auto px-2 py-0.5 font-mono text-[11px] font-semibold tracking-[0.04em] uppercase"
+            className="h-5 px-1.5 py-0 font-mono text-[11px] font-medium tracking-wide uppercase"
           >
             {plugin.status}
           </Badge>
           {update ? (
             <>
               {" "}
-              <StatusBadge status="attention">warn</StatusBadge> {plugin.version} → {update.latest}
+              <StatusBadge status="attention" /> {plugin.version} → {update.latest}
             </>
           ) : (
             <span className="mono"> {plugin.version}</span>
@@ -649,14 +654,9 @@ function PluginRow({
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {canUpdate && update ? (
-          <Button
-            variant="outline"
-            size="sm"
-            type="button"
-            onClick={() => onUpdate({ plugin: plugin.ref, name: plugin.name })}
-          >
+          <RowAction type="button" onClick={() => onUpdate({ plugin: plugin.ref, name: plugin.name })}>
             Update
-          </Button>
+          </RowAction>
         ) : null}
         <Button
           variant="outline"

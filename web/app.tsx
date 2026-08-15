@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { Loader2Icon, ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
 import { SiteList } from "@/components/site-list";
@@ -33,6 +34,7 @@ function Board() {
   const [page, setPage] = useState<SitePage | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [scanAllBusy, setScanAllBusy] = useState(false);
 
   async function refresh() {
     const rows = await api<OverviewRow[]>("/api/sites");
@@ -72,14 +74,26 @@ function Board() {
           <Button
             variant="outline"
             type="button"
+            disabled={scanAllBusy}
+            aria-busy={scanAllBusy}
             onClick={() => {
               void (async () => {
-                await api("/api/scan-all", { method: "POST" });
-                toast.success("Scan started");
-                await refresh();
+                setScanAllBusy(true);
+                try {
+                  await api("/api/scan-all", { method: "POST" });
+                  toast.success("Scan started");
+                  await refresh();
+                } finally {
+                  setScanAllBusy(false);
+                }
               })();
             }}
           >
+            {scanAllBusy ? (
+              <Loader2Icon className="size-4 animate-spin" aria-hidden />
+            ) : (
+              <ScanLineIcon className="size-4" aria-hidden />
+            )}
             Scan all
           </Button>
           <Button type="button" onClick={() => setAddOpen(true)}>
@@ -117,6 +131,9 @@ function Board() {
         page={selectedPage}
         onOpenChange={(open) => {
           if (!open) {
+            if (addOpen || editOpen) {
+              return;
+            }
             setSelected(null);
             setPage(null);
           }
