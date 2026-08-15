@@ -191,7 +191,7 @@ export type ScanSummary = {
   id: ScanId;
   finishedAt: string;
   rollup: FinishedRollup;
-  counts: { crit: number; warn: number; info: number };
+  counts: { crit: number; warn: number; info: number; updates: number };
 };
 
 export type SitePage = OverviewRow & {
@@ -427,12 +427,23 @@ export function findingCounts(findings: Finding[]): { crit: number; warn: number
 }
 
 export function scanSummary(snapshot: ScanSnapshot): ScanSummary {
+  const counts = findingCounts(snapshot.findings);
   return {
     id: snapshot.id,
     finishedAt: snapshot.finishedAt,
     rollup: snapshot.rollup,
-    counts: findingCounts(snapshot.findings),
+    counts: { ...counts, updates: updateFindingCount(snapshot.findings) },
   };
+}
+
+function updateFindingCount(findings: Finding[]): number {
+  let updates = 0;
+  for (const finding of findings) {
+    if (finding.kind === "plugin_update" || finding.kind === "theme_update" || finding.kind === "core_update") {
+      updates += 1;
+    }
+  }
+  return updates;
 }
 
 function parseVersion(raw: string): number[] | null {

@@ -54,7 +54,7 @@ export type ScanSummary = {
   id: string;
   finishedAt: string;
   rollup: "ok" | "degraded" | "down" | "auth_failed";
-  counts: { crit: number; warn: number; info: number };
+  counts: { crit: number; warn: number; info: number; updates: number };
 };
 
 export type SitePage = OverviewRow & {

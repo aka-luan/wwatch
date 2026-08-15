@@ -3,8 +3,8 @@ import { ChevronDownIcon, ExternalLinkIcon, LogInIcon, RefreshCwIcon } from "luc
 import { toast } from "sonner";
 import { EmptyNote, FindingRow, RowAction } from "@/components/finding-row";
 import { ProcessingIndicator } from "@/components/processing-indicator";
+import { ScanTimeline } from "@/components/scan-timeline";
 import { StatusBadge } from "@/components/status-badge";
-import { StatusDot } from "@/components/status-dot";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,12 +37,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { siteFindingSections, type DisplayFinding } from "@/lib/finding-groups";
-import { ago, agoWords, formatScanWhen, host } from "@/lib/format";
+import { agoWords, formatScanWhen, host } from "@/lib/format";
 import { helperCan, isRepairablePath } from "@/lib/helper";
 import { scanningLabel, scanOperationOf, type ScanOperationState } from "@/lib/scan-operation";
 import { siteOverview } from "@/lib/site-overview";
-import { SITE_STATUS_LABEL, siteStatusFromCounts } from "@/lib/status";
-import type { Finding, HelperInfo, InstalledPlugin, ScanSummary, SitePage } from "@/lib/types";
+import { SITE_STATUS_LABEL } from "@/lib/status";
+import type { Finding, HelperInfo, InstalledPlugin, SitePage } from "@/lib/types";
 
 type ConfirmJob = {
   title: string;
@@ -103,7 +103,6 @@ function SiteActionCenter({
   const updateFindings = findings.filter(
     (finding) => finding.kind === "plugin_update" || finding.kind === "theme_update",
   );
-  const previous = (page.history ?? []).filter((scan) => scan.id !== page.latest?.id);
   const overview = siteOverview(page);
   const sections = siteFindingSections({
     origin: page.site.origin,
@@ -295,13 +294,12 @@ function SiteActionCenter({
           <p className="help pt-4">{overview.primaryLabel}.</p>
         )}
         <Separator className="my-4" />
-        <SecondaryBlock title="Scan history">
-          {previous.length ? (
-            previous.map((scan) => <ScanHistoryRow key={scan.id} scan={scan} />)
-          ) : (
-            <EmptyNote>No earlier scans.</EmptyNote>
-          )}
-        </SecondaryBlock>
+        <section className="border-b border-border pb-3" aria-labelledby="scan-history-heading">
+          <h3 id="scan-history-heading" className="mb-2 text-sm font-medium">
+            Scan history
+          </h3>
+          <ScanTimeline page={page} scanning={scanning} />
+        </section>
         <SecondaryBlock title="Site configuration">
           {plugins.length ? (
             plugins.map((plugin) => (
@@ -681,22 +679,6 @@ function findingAction(
     }
   }
   return undefined;
-}
-
-function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
-  const status = siteStatusFromCounts(scan.counts);
-  return (
-    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-2 text-[13px] text-muted-foreground transition-colors hover:bg-muted/30">
-      <span className="inline-flex items-center gap-2 text-foreground">
-        <StatusDot status={status} decorative />
-        {SITE_STATUS_LABEL[status]}
-      </span>
-      <span>{ago(scan.finishedAt)}</span>
-      <span>
-        {scan.counts.crit} crit · {scan.counts.warn} warn
-      </span>
-    </div>
-  );
 }
 
 function PluginRow({
