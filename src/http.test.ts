@@ -167,6 +167,15 @@ test("login lockout is shared across app instances on the same database", async 
   await again.close();
 });
 
+test("built frontend assets skip the board password", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const app = createApp(new Fleet(store), "board");
+  const response = await app.request("/assets/login.js");
+  assert.equal(response.status, 404);
+  await store.close();
+});
+
 test("API responses include security headers", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
   const store = new Store(join(dir, "watch.db"));

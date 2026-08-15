@@ -4,7 +4,8 @@
 
 `wwatch` is a single Node.js + TypeScript service (Hono web framework, run via `tsx`). It monitors WordPress sites you admin via their REST API + an Application Password; nothing runs on the WordPress side. There are no other services to start.
 
-- Standard commands are in `package.json` scripts and `README.md`: `npm run dev` (dev server with watch), `npm start`, `npm test`, `npm run typecheck`, `npm run verify`.
+- Standard commands are in `package.json` scripts and `README.md`: `npm run dev` (Vite frontend watch + API server), `npm start` (production build then serve), `npm test`, `npm run typecheck`, `npm run lint`, `npm run verify`.
+- The dashboard UI is a Vite + React app in `web/` (Tailwind, shadcn/ui on Base UI, Lucide). `vite build` writes hashed assets to `public/`, which is gitignored. The Hono server still serves `public/` the same way.
 - The dev server listens on `127.0.0.1:8787` by default. To reach it from outside the VM (e.g. the Desktop browser), start it with `HOST=0.0.0.0 npm run dev`.
 - Storage: local dev uses a file-backed SQLite DB at `data/watch.db` (via `@libsql/client`). It is created automatically and is gitignored. Delete `data/watch.db` to reset all state. Override the path with `WATCH_DB`. No external database is needed for local development — the `TURSO_*` env vars are only for the Vercel deployment.
 - Non-obvious gotcha: in local Node mode, `POST /api/sites/:id/scan` responds with `{"error":"This context has no ExecutionContext"}` because the scan is deferred via the Vercel-only `executionCtx.waitUntil` pattern. Despite that error response, the scan still runs to completion in the background, and the frontend surfaces results through its 2.5s polling loop (`setInterval(refresh, 2500)` in `public/app.js`). Do not treat that error response as a scan failure when testing locally.

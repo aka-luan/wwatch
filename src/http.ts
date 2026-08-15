@@ -54,7 +54,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       "/app.js",
       "/favicon.ico",
     ]);
-    if (open.has(c.req.path)) {
+    if (open.has(c.req.path) || c.req.path.startsWith("/assets/")) {
       await next();
       return;
     }
