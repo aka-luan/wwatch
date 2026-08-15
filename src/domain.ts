@@ -7,6 +7,28 @@ export type PluginStatus = "active" | "inactive";
 export type Severity = "info" | "warn" | "crit";
 export type FinishedRollup = "ok" | "degraded" | "down" | "auth_failed";
 export type Rollup = "never" | "running" | FinishedRollup;
+export type HelperCapability = "login" | "update" | "repair";
+export type HelperInfo =
+  | { kind: "missing" }
+  | { kind: "installed"; version: string; capabilities: HelperCapability[] };
+export type UpdateTarget =
+  | { kind: "plugin"; plugin: PluginRef }
+  | { kind: "theme"; theme: string }
+  | { kind: "core" }
+  | { kind: "all" };
+export const REPAIRABLE_PATHS = [
+  "/debug.log",
+  "/wp-content/debug.log",
+  "/readme.html",
+  "/license.txt",
+  "/wp-config.php.bak",
+  "/wp-config.php.save",
+  "/wp-config.php.old",
+] as const;
+export type RepairablePath = (typeof REPAIRABLE_PATHS)[number];
+export type RepairTarget = { kind: "exposed_path"; path: RepairablePath } | { kind: "xmlrpc" };
+
+const HELPER_CAPABILITIES: readonly HelperCapability[] = ["login", "update", "repair"];
 
 export type Site = {
   id: SiteId;
@@ -88,6 +110,60 @@ export type Finding =
       detail: string;
       test: string;
       result: "good" | "recommended" | "critical";
+    }
+  | {
+      kind: "php_runtime";
+      severity: "warn" | "crit";
+      title: string;
+      detail: string;
+      phpVersion: string;
+      requiredPhp: string;
+      memoryBytes: number | null;
+    }
+  | { kind: "wp_debug"; severity: "warn"; title: string; detail: string }
+  | { kind: "file_edit_allowed"; severity: "warn"; title: string; detail: string }
+  | {
+      kind: "updates_blocked";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      fileMods: boolean;
+      autoUpdater: boolean;
+    }
+  | {
+      kind: "core_checksums";
+      severity: "warn" | "crit";
+      title: string;
+      detail: string;
+      matched: number;
+      mismatched: number;
+      skipped: number;
+    }
+  | {
+      kind: "hidden_code";
+      severity: "info";
+      title: string;
+      detail: string;
+      muPlugins: string[];
+      dropins: string[];
+    }
+  | {
+      kind: "cron";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      disabled: boolean;
+      missed: number;
+    }
+  | { kind: "autoload_size"; severity: "warn"; title: string; detail: string; bytes: number }
+  | {
+      kind: "admin_users";
+      severity: "info" | "warn";
+      title: string;
+      detail: string;
+      administrators: number;
+      loginAdmin: boolean;
+      userId1: boolean;
     };
 
 export type ScanSnapshot = {
@@ -99,6 +175,7 @@ export type ScanSnapshot = {
   coreVersion: string | null;
   plugins: InstalledPlugin[];
   findings: Finding[];
+  helper: HelperInfo | null;
 };
 
 export type RunningScan = { id: ScanId; startedAt: string };
@@ -193,6 +270,106 @@ export function pluginSlug(ref: PluginRef): string {
     throw new Error("Plugin ref missing directory");
   }
   return dir;
+}
+
+export function parseThemeSlug(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.includes("/") || trimmed.includes("..") || !/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+    throw new Error("Theme slug must look like a stylesheet directory");
+  }
+  return trimmed;
+}
+
+export function parseUpdateTarget(body: Record<string, unknown>): UpdateTarget {
+  const kind = body.kind;
+  if (kind === "core") {
+    return { kind: "core" };
+  }
+  if (kind === "all") {
+    return { kind: "all" };
+  }
+  if (kind === "plugin") {
+    return { kind: "plugin", plugin: parsePluginRef(String(body.plugin ?? "")) };
+  }
+  if (kind === "theme") {
+    return { kind: "theme", theme: parseThemeSlug(String(body.theme ?? "")) };
+  }
+  throw new Error("Update kind must be plugin, theme, core, or all");
+}
+
+export function parseRepairTarget(body: Record<string, unknown>): RepairTarget {
+  const kind = body.kind;
+  if (kind === "xmlrpc") {
+    return { kind: "xmlrpc" };
+  }
+  if (kind === "exposed_path") {
+    const path = typeof body.path === "string" ? body.path : "";
+    if (!isRepairablePath(path)) {
+      throw new Error("This path cannot be repaired from the board");
+    }
+    return { kind: "exposed_path", path };
+  }
+  throw new Error("Repair kind must be exposed_path or xmlrpc");
+}
+
+export function isRepairablePath(path: string): path is RepairablePath {
+  if (!path.startsWith("/") || path.includes("..") || path.includes("\\") || path.includes("//")) {
+    return false;
+  }
+  return (REPAIRABLE_PATHS as readonly string[]).includes(path);
+}
+
+export function parseHelperInfo(raw: unknown): HelperInfo | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  if (!("kind" in raw) || typeof raw.kind !== "string") {
+    return null;
+  }
+  if (raw.kind === "missing") {
+    return { kind: "missing" };
+  }
+  if (raw.kind !== "installed") {
+    return null;
+  }
+  if (!("version" in raw) || typeof raw.version !== "string" || !raw.version.trim()) {
+    return null;
+  }
+  const capabilities: HelperCapability[] = [];
+  if ("capabilities" in raw && Array.isArray(raw.capabilities)) {
+    for (const item of raw.capabilities) {
+      if (typeof item === "string" && isHelperCapability(item) && !capabilities.includes(item)) {
+        capabilities.push(item);
+      }
+    }
+  }
+  return { kind: "installed", version: raw.version.trim(), capabilities };
+}
+
+export function helperFromCapabilities(raw: unknown): HelperInfo | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  if (!("version" in raw) || typeof raw.version !== "string" || !raw.version.trim()) {
+    return null;
+  }
+  const capabilities: HelperCapability[] = [];
+  if ("capabilities" in raw && Array.isArray(raw.capabilities)) {
+    for (const item of raw.capabilities) {
+      if (typeof item === "string" && isHelperCapability(item) && !capabilities.includes(item)) {
+        capabilities.push(item);
+      }
+    }
+  }
+  return { kind: "installed", version: raw.version.trim(), capabilities };
+}
+
+export function helperCan(helper: HelperInfo | null, capability: HelperCapability): boolean {
+  return helper?.kind === "installed" && helper.capabilities.includes(capability);
+}
+
+function isHelperCapability(value: string): value is HelperCapability {
+  return HELPER_CAPABILITIES.some((item) => item === value);
 }
 
 export function compareVersions(

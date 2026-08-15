@@ -93,6 +93,7 @@ test("runScan records plugin updates, broken links, and exposed paths", async ()
   assert.ok(snapshot.findings.some((f) => f.kind === "broken_link" && f.httpStatus === 404));
   assert.ok(snapshot.findings.some((f) => f.kind === "exposed_path" && f.path === "/readme.html"));
   assert.ok(snapshot.findings.some((f) => f.kind === "site_health" && f.test === "https-status"));
+  assert.equal(snapshot.helper?.kind, "missing");
   assert.equal(snapshot.rollup, "degraded");
 });
 
@@ -115,6 +116,142 @@ test("runScan marks a dead origin as down", async () => {
   );
   assert.equal(snapshot.rollup, "down");
   assert.equal(snapshot.findings[0]?.kind, "down");
+  assert.equal(snapshot.helper, null);
+});
+
+test("runScan records the helper plugin when wwatch/v1 answers", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, `<meta name="generator" content="WordPress 6.7.1" />`);
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2", "wwatch/v1"] });
+      return;
+    }
+    if (url === "/wp-json/wwatch/v1" || url === "/wp-json/wwatch/v1/") {
+      json(res, { version: "1.2.0", capabilities: ["login", "update", "repair"] });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, []);
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/")) {
+      json(res, { status: "good", label: "ok", description: "" });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-helper"),
+      name: "Helper",
+      origin: parseOrigin(`http://127.0.0.1:${portOf(server)}`),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    fakeOrg({
+      fetch: globalThis.fetch,
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+    }),
+  );
+  server.close();
+  assert.deepEqual(snapshot.helper, {
+    kind: "installed",
+    version: "1.2.0",
+    capabilities: ["login", "update", "repair"],
+  });
+  assert.equal(
+    snapshot.findings.some((f) =>
+      f.kind === "php_runtime" ||
+      f.kind === "wp_debug" ||
+      f.kind === "file_edit_allowed" ||
+      f.kind === "updates_blocked" ||
+      f.kind === "core_checksums" ||
+      f.kind === "hidden_code" ||
+      f.kind === "cron" ||
+      f.kind === "autoload_size" ||
+      f.kind === "admin_users",
+    ),
+    false,
+  );
+});
+
+test("runScan records helper health findings when /wwatch/v1/health answers", async () => {
+  const server = await listen((req, res) => {
+    const url = req.url ?? "/";
+    if (url === "/") {
+      html(res, `<meta name="generator" content="WordPress 6.7.1" />`);
+      return;
+    }
+    if (url === "/wp-json") {
+      json(res, { namespaces: ["wp/v2", "wwatch/v1"] });
+      return;
+    }
+    if (url === "/wp-json/wwatch/v1" || url === "/wp-json/wwatch/v1/") {
+      json(res, { version: "1.3.0", capabilities: ["login", "update", "repair"] });
+      return;
+    }
+    if (url === "/wp-json/wwatch/v1/health" || url === "/wp-json/wwatch/v1/health/") {
+      json(res, {
+        php: { version: "7.0.33", required: "7.2.24", memory_limit: "32M", memory_bytes: 33554432 },
+        wp_debug: true,
+        disallow_file_edit: false,
+        disallow_file_mods: false,
+        automatic_updater_disabled: true,
+        checksums: { matched: 80, mismatched: 2, skipped: 5 },
+        mu_plugins: ["sunrise.php"],
+        dropins: ["object-cache.php"],
+        cron: { disabled: false, missed: 3 },
+        autoload_bytes: 2 * 1024 * 1024,
+        users: { administrators: 2, login_admin: true, id_1: true },
+      });
+      return;
+    }
+    if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
+      json(res, []);
+      return;
+    }
+    if (url.startsWith("/wp-json/wp-site-health/v1/tests/")) {
+      json(res, { status: "good", label: "ok", description: "" });
+      return;
+    }
+    res.statusCode = 404;
+    res.end("no");
+  });
+  const snapshot = await runScan(
+    {
+      id: asSiteId("site-health"),
+      name: "Health",
+      origin: parseOrigin(`http://127.0.0.1:${portOf(server)}`),
+      username: "luan",
+      applicationPassword: "aaaa",
+    },
+    fakeOrg({
+      fetch: globalThis.fetch,
+      now: () => new Date("2026-08-13T12:00:00.000Z"),
+      tlsDaysLeft: async () => 90,
+    }),
+  );
+  server.close();
+  assert.equal(snapshot.helper?.kind, "installed");
+  assert.ok(snapshot.findings.some((f) => f.kind === "php_runtime" && f.severity === "crit"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "file_edit_allowed"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "updates_blocked" && f.severity === "info"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "core_checksums" && f.mismatched === 2));
+  assert.ok(snapshot.findings.some((f) => f.kind === "hidden_code"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "cron" && f.missed === 3));
+  assert.ok(snapshot.findings.some((f) => f.kind === "autoload_size"));
+  assert.ok(snapshot.findings.some((f) => f.kind === "admin_users" && f.loginAdmin));
+  assert.equal(
+    snapshot.findings.some((f) => f.kind === "wp_debug"),
+    false,
+  );
+  assert.equal(snapshot.rollup, "degraded");
 });
 
 test("runScan reads core version from Site Health when the generator tag is missing", async () => {

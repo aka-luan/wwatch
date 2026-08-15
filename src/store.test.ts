@@ -36,11 +36,13 @@ test("store round-trips a site and its latest scan", async () => {
       },
     ],
     findings: [{ kind: "xmlrpc_open", severity: "info", title: "xmlrpc", detail: "" }],
+    helper: { kind: "missing" },
   });
 
   const latest = await store.latestScan(site.id);
   assert.equal(latest?.coreVersion, "6.7.1");
   assert.equal(latest?.plugins[0]?.slug, "akismet");
+  assert.equal(latest?.helper?.kind, "missing");
   const rows = await store.overview();
   assert.equal(rows[0]?.rollup, "degraded");
   await store.close();
@@ -62,6 +64,7 @@ test("latestScan prefers the later insert when finished_at ties", async () => {
     finishedAt: "2026-08-13T10:00:05.000Z",
     coreVersion: null,
     plugins: [] as never[],
+    helper: null,
   };
   await store.insertScan({
     ...base,

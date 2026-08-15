@@ -7,11 +7,13 @@ import {
   pluginSlug,
   rollupOf,
   type Finding,
+  type HelperInfo,
   type InstalledPlugin,
   type PluginRef,
   type ScanSnapshot,
   type SiteId,
 } from "./domain.js";
+import { fetchHelperHealth, findingsFromHealth, probeHelper } from "./helper.js";
 import type { StoredSite } from "./store.js";
 
 const TIMEOUT_MS = 10_000;
@@ -53,6 +55,7 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
   const findings: Finding[] = [];
   let coreVersion: string | null = null;
   let plugins: InstalledPlugin[] = [];
+  let helper: HelperInfo | null = null;
 
   const home = await readSameOrigin(deps, site.origin + "/", site.origin);
   if (home.kind === "network") {
@@ -62,7 +65,7 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
       title: "Site did not respond",
       detail: home.detail,
     });
-    return finish(id, site.id, startedAt, deps.now(), findings, null, []);
+    return finish(id, site.id, startedAt, deps.now(), findings, null, [], null);
   }
 
   const index = await read(deps, site.origin + "/wp-json");
@@ -127,6 +130,13 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
     });
   } else if (auth.kind === "http" && auth.status === 200) {
     plugins = parsePlugins(auth.body);
+    helper = await probeHelper(site, deps);
+    if (helper?.kind === "installed") {
+      const health = await fetchHelperHealth(site, deps);
+      if (health) {
+        findings.push(...findingsFromHealth(health, { httpsOrigin: site.origin.startsWith("https:") }));
+      }
+    }
     const org = await Promise.all(plugins.map((plugin) => orgPlugin(deps, plugin.slug)));
     for (const plugin of plugins) {
       const info = org.find((item) => item.slug === plugin.slug);
@@ -285,7 +295,7 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
     });
   }
 
-  return finish(id, site.id, startedAt, deps.now(), findings, coreVersion, plugins);
+  return finish(id, site.id, startedAt, deps.now(), findings, coreVersion, plugins, helper);
 }
 
 export async function assertConnect(site: StoredSite, deps: ScanDeps = defaultDeps): Promise<void> {
@@ -442,6 +452,7 @@ function finish(
   findings: Finding[],
   coreVersion: string | null,
   plugins: InstalledPlugin[],
+  helper: HelperInfo | null,
 ): ScanSnapshot {
   return {
     id,
@@ -452,6 +463,7 @@ function finish(
     coreVersion,
     plugins,
     findings,
+    helper,
   };
 }
 

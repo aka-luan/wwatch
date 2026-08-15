@@ -4,8 +4,14 @@ import {
   compareVersions,
   displayRollup,
   findingCounts,
+  helperCan,
+  helperFromCapabilities,
+  parseHelperInfo,
   parseOrigin,
   parsePluginRef,
+  parseRepairTarget,
+  parseThemeSlug,
+  parseUpdateTarget,
   pluginSlug,
   rollupOf,
   scanSummary,
@@ -39,6 +45,84 @@ test("pluginSlug uses the directory, not the file", () => {
   assert.equal(pluginSlug(ref), "woocommerce");
 });
 
+test("parseThemeSlug rejects paths", () => {
+  assert.equal(parseThemeSlug("twentytwentyfour"), "twentytwentyfour");
+  assert.throws(() => parseThemeSlug("../evil"), /stylesheet/);
+  assert.throws(() => parseThemeSlug("a/b"), /stylesheet/);
+});
+
+test("parseUpdateTarget reads plugin, theme, core, and all", () => {
+  assert.deepEqual(parseUpdateTarget({ kind: "core" }), { kind: "core" });
+  assert.deepEqual(parseUpdateTarget({ kind: "all" }), { kind: "all" });
+  assert.deepEqual(parseUpdateTarget({ kind: "plugin", plugin: "akismet/akismet.php" }), {
+    kind: "plugin",
+    plugin: "akismet/akismet.php",
+  });
+  assert.deepEqual(parseUpdateTarget({ kind: "theme", theme: "twentytwentyfour" }), {
+    kind: "theme",
+    theme: "twentytwentyfour",
+  });
+  assert.throws(() => parseUpdateTarget({ kind: "plugins" }), /plugin, theme, core, or all/);
+});
+
+test("helperFromCapabilities ignores unknown capability names", () => {
+  assert.deepEqual(helperFromCapabilities({ version: "1.1.0", capabilities: ["login", "health", "update"] }), {
+    kind: "installed",
+    version: "1.1.0",
+    capabilities: ["login", "update"],
+  });
+  assert.deepEqual(
+    helperFromCapabilities({ version: "1.2.0", capabilities: ["login", "update", "repair"] }),
+    {
+      kind: "installed",
+      version: "1.2.0",
+      capabilities: ["login", "update", "repair"],
+    },
+  );
+  assert.equal(parseHelperInfo({ kind: "missing" })?.kind, "missing");
+  assert.equal(helperCan({ kind: "missing" }, "update"), false);
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.0.0", capabilities: ["login"] }, "update"),
+    false,
+  );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.1.0", capabilities: ["login", "update"] }, "update"),
+    true,
+  );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.1.0", capabilities: ["login", "update"] }, "repair"),
+    false,
+  );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.2.0", capabilities: ["login", "update", "repair"] }, "repair"),
+    true,
+  );
+});
+
+test("parseRepairTarget allowlists exposed paths and xmlrpc", () => {
+  assert.deepEqual(parseRepairTarget({ kind: "xmlrpc" }), { kind: "xmlrpc" });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/debug.log" }), {
+    kind: "exposed_path",
+    path: "/debug.log",
+  });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/wp-content/debug.log" }), {
+    kind: "exposed_path",
+    path: "/wp-content/debug.log",
+  });
+  assert.deepEqual(parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php.bak" }), {
+    kind: "exposed_path",
+    path: "/wp-config.php.bak",
+  });
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php" }), /cannot be repaired/);
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "/.git/HEAD" }), /cannot be repaired/);
+  assert.throws(() => parseRepairTarget({ kind: "exposed_path", path: "../wp-config.php.bak" }), /cannot be repaired/);
+  assert.throws(
+    () => parseRepairTarget({ kind: "exposed_path", path: "/wp-config.php.bak/../wp-config.php" }),
+    /cannot be repaired/,
+  );
+  assert.throws(() => parseRepairTarget({ kind: "plugin" }), /exposed_path or xmlrpc/);
+});
+
 test("compareVersions does not treat 6.4.10 as behind 6.4.2", () => {
   assert.equal(compareVersions("6.4.2", "6.4.10"), "behind");
   assert.equal(compareVersions("6.4.10", "6.4.2"), "ahead");
@@ -62,6 +146,25 @@ test("rollupOf prefers down over auth_failed over degraded", () => {
   assert.equal(rollupOf([warn, auth]), "auth_failed");
   assert.equal(rollupOf([warn]), "degraded");
   assert.equal(rollupOf([]), "ok");
+  const checksums: Finding = {
+    kind: "core_checksums",
+    severity: "warn",
+    title: "2 core files do not match wordpress.org checksums",
+    detail: "",
+    matched: 10,
+    mismatched: 2,
+    skipped: 0,
+  };
+  assert.equal(rollupOf([checksums]), "degraded");
+  const hidden: Finding = {
+    kind: "hidden_code",
+    severity: "info",
+    title: "Drop-in object-cache.php",
+    detail: "",
+    muPlugins: [],
+    dropins: ["object-cache.php"],
+  };
+  assert.equal(rollupOf([hidden]), "ok");
 });
 
 test("displayRollup keeps the last finished rollup while a scan runs", () => {
@@ -76,6 +179,7 @@ test("displayRollup keeps the last finished rollup while a scan runs", () => {
     coreVersion: "6.7.1",
     plugins: [],
     findings: [],
+    helper: null,
   };
   assert.equal(displayRollup({ latest, running: { id: "s2" as never, startedAt: "t" } }), "degraded");
 });
@@ -102,6 +206,7 @@ test("scanSummary keeps rollup, time, and counts without findings", () => {
       { kind: "down", severity: "crit", title: "down", detail: "" },
       { kind: "rate_limited", severity: "warn", title: "rl", detail: "" },
     ],
+    helper: null,
   });
   assert.deepEqual(summary, {
     id: "c1",

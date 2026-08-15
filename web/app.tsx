@@ -29,8 +29,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { api } from "@/lib/api";
 import { ago, host } from "@/lib/format";
+import { helperCan, isRepairablePath } from "@/lib/helper";
 import { rollupLabel, siteStatusFromRollup, siteStatusFromSeverity } from "@/lib/status";
-import type { Finding, InstalledPlugin, OverviewRow, ScanSummary, SitePage } from "@/lib/types";
+import type { Finding, HelperInfo, InstalledPlugin, OverviewRow, ScanSummary, SitePage } from "@/lib/types";
 
 export function App() {
   return (
@@ -222,7 +223,8 @@ function SiteList({
         <h2>No sites yet</h2>
         <p>
           Add a WordPress site you already admin. wwatch talks to it with an Application Password from
-          Users → Profile. Nothing gets installed on the site.
+          Users → Profile. Scans install nothing on the site. Log in from the drawer needs the optional
+          wwatch plugin.
         </p>
       </div>
     );
@@ -347,13 +349,47 @@ function SiteDrawer({
 }) {
   const findings = page.latest?.findings ?? [];
   const plugins = page.latest?.plugins ?? [];
+  const helper = page.latest?.helper ?? null;
+  const canUpdate = helperCan(helper, "update");
+  const updateFindings = findings.filter(
+    (finding) => finding.kind === "plugin_update" || finding.kind === "theme_update",
+  );
   const previous = (page.history ?? []).filter((scan) => scan.id !== page.latest?.id);
   const [removeOpen, setRemoveOpen] = useState(false);
+  const [loginBusy, setLoginBusy] = useState(false);
+  const [helperError, setHelperError] = useState("");
   const [pluginChange, setPluginChange] = useState<{
     plugin: string;
     name: string;
     status: "active" | "inactive";
   } | null>(null);
+  const [confirmJob, setConfirmJob] = useState<{
+    title: string;
+    description: string;
+    run: () => Promise<void>;
+    action: string;
+  } | null>(null);
+
+  useEffect(() => {
+    setHelperError("");
+  }, [page.site.id]);
+
+  async function applyHelper(path: string, body: unknown, failed: string) {
+    setHelperError("");
+    try {
+      await api(`/api/sites/${page.site.id}${path}`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      toast.success("Update succeeded");
+      await onChanged();
+    } catch (error) {
+      const text = error instanceof Error ? error.message : failed;
+      setHelperError(text);
+      toast.error(text);
+    }
+  }
 
   return (
     <aside className="drawer">
@@ -367,6 +403,52 @@ function SiteDrawer({
           </p>
         </div>
         <div className="actions">
+          <Button
+            variant="outline"
+            type="button"
+            disabled={loginBusy}
+            onClick={() => {
+              void (async () => {
+                setHelperError("");
+                setLoginBusy(true);
+                const tab = window.open("about:blank", "wp-admin");
+                try {
+                  const result = await api<{ url: string }>(`/api/sites/${page.site.id}/wp-login`, {
+                    method: "POST",
+                  });
+                  if (tab) {
+                    tab.opener = null;
+                    tab.location.replace(result.url);
+                  } else {
+                    setHelperError("The browser blocked the login window. Allow popups for this board.");
+                  }
+                } catch (error) {
+                  tab?.close();
+                  setHelperError(error instanceof Error ? error.message : "Could not log in");
+                } finally {
+                  setLoginBusy(false);
+                }
+              })();
+            }}
+          >
+            Log in
+          </Button>
+          {canUpdate && updateFindings.length ? (
+            <Button
+              variant="outline"
+              type="button"
+              onClick={() =>
+                setConfirmJob({
+                  title: "Update plugins and themes?",
+                  description: "Update every plugin and theme that has a wordpress.org update? Core is not included.",
+                  action: "Update all",
+                  run: () => applyHelper("/update", { kind: "all" }, "Could not update"),
+                })
+              }
+            >
+              Update all
+            </Button>
+          ) : null}
           <Button
             variant="outline"
             type="button"
@@ -392,6 +474,8 @@ function SiteDrawer({
         <StatusBadge status={siteStatusFromRollup(page.rollup)}>{rollupLabel(page.rollup)}</StatusBadge>
         {page.latest?.coreVersion ? ` · WP ${page.latest.coreVersion}` : ""}
       </p>
+      <HelperHelp helper={helper} />
+      {helperError ? <p className="error">{helperError}</p> : null}
       <h3>Findings</h3>
       {findings.length ? (
         findings.map((finding) => (
@@ -401,6 +485,7 @@ function SiteDrawer({
             statusLabel={finding.severity}
             title={finding.title}
             detail={finding.detail}
+            action={findingAction(finding, helper, page.site.name, setConfirmJob, applyHelper)}
           />
         ))
       ) : (
@@ -419,7 +504,17 @@ function SiteDrawer({
             key={plugin.ref}
             plugin={plugin}
             findings={findings}
+            canUpdate={canUpdate}
             onToggle={(next) => setPluginChange(next)}
+            onUpdate={(next) =>
+              setConfirmJob({
+                title: `Update ${next.name}?`,
+                description: `Update ${next.name} on ${page.site.name}?`,
+                action: "Update",
+                run: () =>
+                  applyHelper("/update", { kind: "plugin", plugin: next.plugin }, "Could not update"),
+              })
+            }
           />
         ))
       ) : (
@@ -496,8 +591,164 @@ function SiteDrawer({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+      <AlertDialog open={Boolean(confirmJob)} onOpenChange={(open) => !open && setConfirmJob(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{confirmJob?.title}</AlertDialogTitle>
+            <AlertDialogDescription>{confirmJob?.description}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                const job = confirmJob;
+                if (!job) {
+                  return;
+                }
+                void job.run();
+              }}
+            >
+              {confirmJob?.action ?? "Confirm"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </aside>
   );
+}
+
+function HelperHelp({ helper }: { helper: HelperInfo | null }) {
+  if (!helper || helper.kind === "missing") {
+    return (
+      <p className="help">
+        Install the <a href="/api/helper-plugin">wwatch plugin</a> to log in, update, or fix findings from the
+        board.
+      </p>
+    );
+  }
+  if (!helperCan(helper, "update")) {
+    return (
+      <p className="help">
+        This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update or
+        fix findings from the board.
+      </p>
+    );
+  }
+  if (!helperCan(helper, "repair")) {
+    return (
+      <p className="help">
+        This plugin can log in and update. Download the current <a href="/api/helper-plugin">wwatch plugin</a>{" "}
+        to fix exposed files from the board.
+      </p>
+    );
+  }
+  return <p className="help">Log in opens wp-admin. Update and Fix use the wwatch plugin on this site.</p>;
+}
+
+function findingAction(
+  finding: Finding,
+  helper: HelperInfo | null,
+  siteName: string,
+  confirm: (job: { title: string; description: string; run: () => Promise<void>; action: string }) => void,
+  applyHelper: (path: string, body: unknown, failed: string) => Promise<void>,
+) {
+  if (helperCan(helper, "update")) {
+    if (finding.kind === "plugin_update" && finding.plugin) {
+      return (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() =>
+            confirm({
+              title: `Update ${finding.title}?`,
+              description: `Update ${finding.title} on ${siteName}?`,
+              action: "Update",
+              run: () =>
+                applyHelper("/update", { kind: "plugin", plugin: finding.plugin }, "Could not update"),
+            })
+          }
+        >
+          Update
+        </Button>
+      );
+    }
+    if (finding.kind === "theme_update" && finding.theme) {
+      return (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() =>
+            confirm({
+              title: `Update ${finding.title}?`,
+              description: `Update ${finding.title} on ${siteName}?`,
+              action: "Update",
+              run: () => applyHelper("/update", { kind: "theme", theme: finding.theme }, "Could not update"),
+            })
+          }
+        >
+          Update
+        </Button>
+      );
+    }
+    if (finding.kind === "core_update") {
+      return (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() =>
+            confirm({
+              title: `Update WordPress on ${siteName}?`,
+              description: `Update WordPress to a new version on ${siteName}? Back up first if you have not.`,
+              action: "Update",
+              run: () => applyHelper("/update", { kind: "core" }, "Could not update"),
+            })
+          }
+        >
+          Update
+        </Button>
+      );
+    }
+  }
+  if (helperCan(helper, "repair")) {
+    if (finding.kind === "xmlrpc_open") {
+      return (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() =>
+            confirm({
+              title: `Disable XML-RPC on ${siteName}?`,
+              description: `Disable XML-RPC on ${siteName}? This does not delete xmlrpc.php.`,
+              action: "Fix",
+              run: () => applyHelper("/repair", { kind: "xmlrpc" }, "Could not repair"),
+            })
+          }
+        >
+          Fix
+        </Button>
+      );
+    }
+    if (finding.kind === "exposed_path" && isRepairablePath(finding.path)) {
+      return (
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() =>
+            confirm({
+              title: `Delete ${finding.path}?`,
+              description: `Delete ${finding.path} on ${siteName}?`,
+              action: "Fix",
+              run: () =>
+                applyHelper("/repair", { kind: "exposed_path", path: finding.path }, "Could not repair"),
+            })
+          }
+        >
+          Fix
+        </Button>
+      );
+    }
+  }
+  return undefined;
 }
 
 function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
@@ -517,11 +768,15 @@ function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
 function PluginRow({
   plugin,
   findings,
+  canUpdate,
   onToggle,
+  onUpdate,
 }: {
   plugin: InstalledPlugin;
   findings: Finding[];
+  canUpdate: boolean;
   onToggle: (next: { plugin: string; name: string; status: "active" | "inactive" }) => void;
+  onUpdate: (next: { plugin: string; name: string }) => void;
 }) {
   const update = findings.find((finding) => finding.kind === "plugin_update" && finding.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
@@ -541,13 +796,20 @@ function PluginRow({
         )}
         <p className="mono">{plugin.ref}</p>
       </div>
-      <Button
-        variant="outline"
-        type="button"
-        onClick={() => onToggle({ plugin: plugin.ref, name: plugin.name, status: next })}
-      >
-        Set {next}
-      </Button>
+      <div className="plugin-actions">
+        {canUpdate && update ? (
+          <Button variant="outline" type="button" onClick={() => onUpdate({ plugin: plugin.ref, name: plugin.name })}>
+            Update
+          </Button>
+        ) : null}
+        <Button
+          variant="outline"
+          type="button"
+          onClick={() => onToggle({ plugin: plugin.ref, name: plugin.name, status: next })}
+        >
+          Set {next}
+        </Button>
+      </div>
     </div>
   );
 }

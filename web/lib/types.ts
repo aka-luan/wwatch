@@ -1,3 +1,7 @@
+import type { HelperInfo } from "./helper";
+
+export type { HelperInfo };
+
 export type Site = {
   id: string;
   name: string;
@@ -18,7 +22,9 @@ export type Finding = {
   title: string;
   detail: string;
   plugin?: string;
+  theme?: string;
   latest?: string;
+  path?: string;
 };
 
 export type ScanSnapshot = {
@@ -30,6 +36,7 @@ export type ScanSnapshot = {
   coreVersion: string | null;
   plugins: InstalledPlugin[];
   findings: Finding[];
+  helper: HelperInfo | null;
 };
 
 export type OverviewRow = {
