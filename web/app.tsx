@@ -124,14 +124,16 @@ function Board() {
         </div>
       </header>
       {loaded ? (
-        <div className="board-toolbar">
-          <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-          {scanning > 0 ? (
-            <p className="scanning-note">
-              <b>{scanning}</b> scanning
-            </p>
-          ) : null}
-        </div>
+        sites.length > 0 ? (
+          <div className="board-toolbar">
+            <SiteFilters sites={sites} state={filters} onChange={setFilters} />
+            {scanning > 0 ? (
+              <p className="scanning-note">
+                <b>{scanning}</b> scanning
+              </p>
+            ) : null}
+          </div>
+        ) : null
       ) : (
         <div className="board-toolbar">
           <div className="flex flex-wrap gap-2">
