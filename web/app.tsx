@@ -1,21 +1,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
-import { FindingRow } from "@/components/finding-row";
 import { SiteList } from "@/components/site-list";
-import { StatusBadge } from "@/components/status-badge";
-import { StatusDot } from "@/components/status-dot";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { SiteSheet } from "@/components/site-sheet";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -28,10 +15,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { ago } from "@/lib/format";
-import { helperCan, isRepairablePath } from "@/lib/helper";
-import { rollupLabel, siteStatusFromRollup, siteStatusFromSeverity, siteStatusOf } from "@/lib/status";
-import type { Finding, HelperInfo, InstalledPlugin, OverviewRow, ScanSummary, SitePage } from "@/lib/types";
+import { siteStatusOf } from "@/lib/status";
+import type { OverviewRow, SitePage } from "@/lib/types";
 
 export function App() {
   return (
@@ -74,25 +59,7 @@ function Board() {
     return () => clearInterval(timer);
   }, [selected]);
 
-  useEffect(() => {
-    document.body.classList.toggle("drawer-open", Boolean(selected));
-  }, [selected]);
-
-  useEffect(() => {
-    function onKey(event: KeyboardEvent) {
-      if (event.key !== "Escape") {
-        return;
-      }
-      if (addOpen || editOpen) {
-        return;
-      }
-      setSelected(null);
-    }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [addOpen, editOpen]);
-
-  const selectedRow = page;
+  const selectedPage = page && selected && page.site.id === selected ? page : null;
 
   return (
     <>
@@ -138,18 +105,25 @@ function Board() {
           sites={sites}
           loaded={loaded}
           onOpen={(id) => {
+            if (id !== selected) {
+              setPage(null);
+            }
             setSelected(id);
           }}
         />
       </main>
-      {selectedRow ? (
-        <SiteDrawer
-          page={selectedRow}
-          onClose={() => setSelected(null)}
-          onEdit={() => setEditOpen(true)}
-          onChanged={refresh}
-        />
-      ) : null}
+      <SiteSheet
+        open={selected !== null}
+        page={selectedPage}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSelected(null);
+            setPage(null);
+          }
+        }}
+        onEdit={() => setEditOpen(true)}
+        onChanged={refresh}
+      />
       <AddSiteDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -158,11 +132,11 @@ function Board() {
           await refresh();
         }}
       />
-      {selectedRow ? (
+      {selectedPage ? (
         <EditSiteDialog
           open={editOpen}
           onOpenChange={setEditOpen}
-          page={selectedRow}
+          page={selectedPage}
           onSaved={refresh}
         />
       ) : null}
@@ -197,484 +171,6 @@ function Stats({ sites, loaded }: { sites: OverviewRow[]; loaded: boolean }) {
         <b>{scanning}</b> scanning
       </span>
     </section>
-  );
-}
-
-function SiteDrawer({
-  page,
-  onClose,
-  onEdit,
-  onChanged,
-}: {
-  page: SitePage;
-  onClose: () => void;
-  onEdit: () => void;
-  onChanged: () => Promise<void>;
-}) {
-  const findings = page.latest?.findings ?? [];
-  const plugins = page.latest?.plugins ?? [];
-  const helper = page.latest?.helper ?? null;
-  const canUpdate = helperCan(helper, "update");
-  const updateFindings = findings.filter(
-    (finding) => finding.kind === "plugin_update" || finding.kind === "theme_update",
-  );
-  const previous = (page.history ?? []).filter((scan) => scan.id !== page.latest?.id);
-  const [removeOpen, setRemoveOpen] = useState(false);
-  const [loginBusy, setLoginBusy] = useState(false);
-  const [helperError, setHelperError] = useState("");
-  const [pluginChange, setPluginChange] = useState<{
-    plugin: string;
-    name: string;
-    status: "active" | "inactive";
-  } | null>(null);
-  const [confirmJob, setConfirmJob] = useState<{
-    title: string;
-    description: string;
-    run: () => Promise<void>;
-    action: string;
-  } | null>(null);
-
-  useEffect(() => {
-    setHelperError("");
-  }, [page.site.id]);
-
-  async function applyHelper(path: string, body: unknown, failed: string) {
-    setHelperError("");
-    try {
-      await api(`/api/sites/${page.site.id}${path}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      toast.success("Update succeeded");
-      await onChanged();
-    } catch (error) {
-      const text = error instanceof Error ? error.message : failed;
-      setHelperError(text);
-      toast.error(text);
-    }
-  }
-
-  return (
-    <aside className="drawer">
-      <header>
-        <div>
-          <h2>{page.site.name}</h2>
-          <p className="origin">
-            <a href={page.site.origin} target="_blank" rel="noreferrer">
-              {page.site.origin}
-            </a>
-          </p>
-        </div>
-        <div className="actions">
-          <Button
-            variant="outline"
-            type="button"
-            disabled={loginBusy}
-            onClick={() => {
-              void (async () => {
-                setHelperError("");
-                setLoginBusy(true);
-                const tab = window.open("about:blank", "wp-admin");
-                try {
-                  const result = await api<{ url: string }>(`/api/sites/${page.site.id}/wp-login`, {
-                    method: "POST",
-                  });
-                  if (tab) {
-                    tab.opener = null;
-                    tab.location.replace(result.url);
-                  } else {
-                    setHelperError("The browser blocked the login window. Allow popups for this board.");
-                  }
-                } catch (error) {
-                  tab?.close();
-                  setHelperError(error instanceof Error ? error.message : "Could not log in");
-                } finally {
-                  setLoginBusy(false);
-                }
-              })();
-            }}
-          >
-            Log in
-          </Button>
-          {canUpdate && updateFindings.length ? (
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() =>
-                setConfirmJob({
-                  title: "Update plugins and themes?",
-                  description: "Update every plugin and theme that has a wordpress.org update? Core is not included.",
-                  action: "Update all",
-                  run: () => applyHelper("/update", { kind: "all" }, "Could not update"),
-                })
-              }
-            >
-              Update all
-            </Button>
-          ) : null}
-          <Button
-            variant="outline"
-            type="button"
-            onClick={() => {
-              void (async () => {
-                await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-                toast.success("Scan started");
-                await onChanged();
-              })();
-            }}
-          >
-            Scan
-          </Button>
-          <Button variant="outline" type="button" onClick={onEdit}>
-            Edit
-          </Button>
-          <Button variant="outline" type="button" onClick={onClose}>
-            Close
-          </Button>
-        </div>
-      </header>
-      <p>
-        <StatusBadge status={siteStatusFromRollup(page.rollup)}>{rollupLabel(page.rollup)}</StatusBadge>
-        {page.latest?.coreVersion ? ` · WP ${page.latest.coreVersion}` : ""}
-      </p>
-      <HelperHelp helper={helper} />
-      {helperError ? <p className="error">{helperError}</p> : null}
-      <h3>Findings</h3>
-      {findings.length ? (
-        findings.map((finding) => (
-          <FindingRow
-            key={`${finding.kind}:${finding.title}:${finding.detail}`}
-            status={siteStatusFromSeverity(finding.severity)}
-            statusLabel={finding.severity}
-            title={finding.title}
-            detail={finding.detail}
-            action={findingAction(finding, helper, page.site.name, setConfirmJob, applyHelper)}
-          />
-        ))
-      ) : (
-        <p className="help">No findings on the last scan.</p>
-      )}
-      <h3>Previous scans</h3>
-      {previous.length ? (
-        previous.map((scan) => <ScanHistoryRow key={scan.id} scan={scan} />)
-      ) : (
-        <p className="help">No earlier scans.</p>
-      )}
-      <h3>Plugins</h3>
-      {plugins.length ? (
-        plugins.map((plugin) => (
-          <PluginRow
-            key={plugin.ref}
-            plugin={plugin}
-            findings={findings}
-            canUpdate={canUpdate}
-            onToggle={(next) => setPluginChange(next)}
-            onUpdate={(next) =>
-              setConfirmJob({
-                title: `Update ${next.name}?`,
-                description: `Update ${next.name} on ${page.site.name}?`,
-                action: "Update",
-                run: () =>
-                  applyHelper("/update", { kind: "plugin", plugin: next.plugin }, "Could not update"),
-              })
-            }
-          />
-        ))
-      ) : (
-        <p className="help">No plugin list yet. Scan with a working Application Password.</p>
-      )}
-      <div className="row-actions">
-        <Button variant="destructive" type="button" onClick={() => setRemoveOpen(true)}>
-          Remove site
-        </Button>
-      </div>
-      <AlertDialog open={removeOpen} onOpenChange={setRemoveOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Remove {page.site.name}?</AlertDialogTitle>
-            <AlertDialogDescription>
-              The site is removed from this board. WordPress itself is not changed.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={() => {
-                void (async () => {
-                  await api(`/api/sites/${page.site.id}`, { method: "DELETE" });
-                  onClose();
-                  await onChanged();
-                })();
-              }}
-            >
-              Remove
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={Boolean(pluginChange)} onOpenChange={(open) => !open && setPluginChange(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              Set {pluginChange?.name} to {pluginChange?.status}?
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              This changes the plugin on the WordPress site, then starts a new scan.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                if (!pluginChange) {
-                  return;
-                }
-                void (async () => {
-                  try {
-                    await api(`/api/sites/${page.site.id}/plugins`, {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({
-                        plugin: pluginChange.plugin,
-                        status: pluginChange.status,
-                      }),
-                    });
-                    await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-                    toast.success("Update succeeded");
-                    await onChanged();
-                  } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "Update failed");
-                  }
-                })();
-              }}
-            >
-              Confirm
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-      <AlertDialog open={Boolean(confirmJob)} onOpenChange={(open) => !open && setConfirmJob(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{confirmJob?.title}</AlertDialogTitle>
-            <AlertDialogDescription>{confirmJob?.description}</AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                const job = confirmJob;
-                if (!job) {
-                  return;
-                }
-                void job.run();
-              }}
-            >
-              {confirmJob?.action ?? "Confirm"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-    </aside>
-  );
-}
-
-function HelperHelp({ helper }: { helper: HelperInfo | null }) {
-  if (!helper || helper.kind === "missing") {
-    return (
-      <p className="help">
-        Install the <a href="/api/helper-plugin">wwatch plugin</a> to log in, update, or fix findings from the
-        board.
-      </p>
-    );
-  }
-  if (!helperCan(helper, "update")) {
-    return (
-      <p className="help">
-        This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update or
-        fix findings from the board.
-      </p>
-    );
-  }
-  if (!helperCan(helper, "repair")) {
-    return (
-      <p className="help">
-        This plugin can log in and update. Download the current <a href="/api/helper-plugin">wwatch plugin</a>{" "}
-        to fix exposed files from the board.
-      </p>
-    );
-  }
-  return <p className="help">Log in opens wp-admin. Update and Fix use the wwatch plugin on this site.</p>;
-}
-
-function findingAction(
-  finding: Finding,
-  helper: HelperInfo | null,
-  siteName: string,
-  confirm: (job: { title: string; description: string; run: () => Promise<void>; action: string }) => void,
-  applyHelper: (path: string, body: unknown, failed: string) => Promise<void>,
-) {
-  if (helperCan(helper, "update")) {
-    if (finding.kind === "plugin_update" && finding.plugin) {
-      return (
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `Update ${finding.title}?`,
-              description: `Update ${finding.title} on ${siteName}?`,
-              action: "Update",
-              run: () =>
-                applyHelper("/update", { kind: "plugin", plugin: finding.plugin }, "Could not update"),
-            })
-          }
-        >
-          Update
-        </Button>
-      );
-    }
-    if (finding.kind === "theme_update" && finding.theme) {
-      return (
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `Update ${finding.title}?`,
-              description: `Update ${finding.title} on ${siteName}?`,
-              action: "Update",
-              run: () => applyHelper("/update", { kind: "theme", theme: finding.theme }, "Could not update"),
-            })
-          }
-        >
-          Update
-        </Button>
-      );
-    }
-    if (finding.kind === "core_update") {
-      return (
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `Update WordPress on ${siteName}?`,
-              description: `Update WordPress to a new version on ${siteName}? Back up first if you have not.`,
-              action: "Update",
-              run: () => applyHelper("/update", { kind: "core" }, "Could not update"),
-            })
-          }
-        >
-          Update
-        </Button>
-      );
-    }
-  }
-  if (helperCan(helper, "repair")) {
-    if (finding.kind === "xmlrpc_open") {
-      return (
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `Disable XML-RPC on ${siteName}?`,
-              description: `Disable XML-RPC on ${siteName}? This does not delete xmlrpc.php.`,
-              action: "Fix",
-              run: () => applyHelper("/repair", { kind: "xmlrpc" }, "Could not repair"),
-            })
-          }
-        >
-          Fix
-        </Button>
-      );
-    }
-    if (finding.kind === "exposed_path" && isRepairablePath(finding.path)) {
-      return (
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() =>
-            confirm({
-              title: `Delete ${finding.path}?`,
-              description: `Delete ${finding.path} on ${siteName}?`,
-              action: "Fix",
-              run: () =>
-                applyHelper("/repair", { kind: "exposed_path", path: finding.path }, "Could not repair"),
-            })
-          }
-        >
-          Fix
-        </Button>
-      );
-    }
-  }
-  return undefined;
-}
-
-function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
-  const status = siteStatusFromRollup(scan.rollup);
-  return (
-    <div className="scan">
-      <StatusDot status={status} decorative />
-      <span>{rollupLabel(scan.rollup)}</span>
-      <span>{ago(scan.finishedAt)}</span>
-      <span>
-        {scan.counts.crit} crit · {scan.counts.warn} warn
-      </span>
-    </div>
-  );
-}
-
-function PluginRow({
-  plugin,
-  findings,
-  canUpdate,
-  onToggle,
-  onUpdate,
-}: {
-  plugin: InstalledPlugin;
-  findings: Finding[];
-  canUpdate: boolean;
-  onToggle: (next: { plugin: string; name: string; status: "active" | "inactive" }) => void;
-  onUpdate: (next: { plugin: string; name: string }) => void;
-}) {
-  const update = findings.find((finding) => finding.kind === "plugin_update" && finding.plugin === plugin.ref);
-  const next = plugin.status === "active" ? "inactive" : "active";
-  return (
-    <div className="plugin">
-      <div>
-        <strong>{plugin.name}</strong>{" "}
-        <Badge variant="outline" className="h-auto px-2 py-0.5 font-mono text-[11px] font-semibold tracking-[0.04em] uppercase">
-          {plugin.status}
-        </Badge>{" "}
-        {update ? (
-          <>
-            <StatusBadge status="attention">warn</StatusBadge> {plugin.version} → {update.latest}
-          </>
-        ) : (
-          <span className="mono"> {plugin.version}</span>
-        )}
-        <p className="mono">{plugin.ref}</p>
-      </div>
-      <div className="plugin-actions">
-        {canUpdate && update ? (
-          <Button variant="outline" type="button" onClick={() => onUpdate({ plugin: plugin.ref, name: plugin.name })}>
-            Update
-          </Button>
-        ) : null}
-        <Button
-          variant="outline"
-          type="button"
-          onClick={() => onToggle({ plugin: plugin.ref, name: plugin.name, status: next })}
-        >
-          Set {next}
-        </Button>
-      </div>
-    </div>
   );
 }
 
