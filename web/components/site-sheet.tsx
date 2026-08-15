@@ -182,6 +182,7 @@ function SiteActionCenter({
         <ScanOperationBanner
           operation={operation}
           scanning={scanning}
+          historyReady={Boolean(page.username)}
           onRetry={() => {
             void startScan("Scan started");
           }}
@@ -470,11 +471,13 @@ function SecondaryBlock({ title, children }: { title: string; children: ReactNod
 function ScanOperationBanner({
   operation,
   scanning,
+  historyReady,
   onRetry,
   retryBusy,
 }: {
   operation: ScanOperationState;
   scanning: boolean;
+  historyReady: boolean;
   onRetry: () => void;
   retryBusy: boolean;
 }) {
@@ -497,15 +500,21 @@ function ScanOperationBanner({
     return null;
   }
 
+  const lastSuccessfulCopy = operation.lastSuccessfulAt
+    ? `Last successful result from ${agoWords(operation.lastSuccessfulAt)}.`
+    : historyReady
+      ? "No earlier successful result yet."
+      : null;
+
   return (
     <div className="space-y-1" aria-live="polite">
       <p className="text-sm font-medium text-destructive">Scan failed</p>
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="min-w-0 text-[13px] leading-5 text-muted-foreground">
-          {operation.lastSuccessfulAt
-            ? `Last successful result from ${agoWords(operation.lastSuccessfulAt)}.`
-            : "No earlier successful result yet."}
-        </p>
+        {lastSuccessfulCopy ? (
+          <p className="min-w-0 text-[13px] leading-5 text-muted-foreground">{lastSuccessfulCopy}</p>
+        ) : (
+          <span className="min-w-0" />
+        )}
         <Button
           variant="outline"
           size="xs"
