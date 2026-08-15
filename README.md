@@ -2,7 +2,7 @@
 
 A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests.
 
-Nothing is installed on the WordPress site.
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login from the board needs the optional `plugin/wwatch.php` helper, which also leaves a REST namespace (`wwatch/v1`) for later board actions core REST cannot do.
 
 ## Run locally
 
@@ -57,6 +57,16 @@ Use an administrator account. Application Passwords inherit that user's capabili
 If connect says WordPress did not see the password, the host or CDN dropped the `Authorization` header. Hostinger CDN does this. In hPanel, disable CDN or exclude `/wp-json`, or add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess`.
 
 wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the drawer and click **Edit**. The origin cannot change; scan history stays.
+
+### Log in to wp-admin
+
+Application Passwords cannot create a wp-admin cookie. To open the selected site already logged in:
+
+1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo).
+2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
+3. On the board, open the site and click **Log in**.
+
+The plugin mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. If the plugin is missing, the board says so instead of opening a dead tab.
 
 ## What a scan checks
 

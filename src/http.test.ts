@@ -217,6 +217,96 @@ test("scan-all returns 200 in Node where Hono has no ExecutionContext", async ()
   throw new Error("scan did not finish");
 });
 
+test("POST /api/sites/:id/wp-login mints a helper URL and GET /api/helper-plugin downloads the plugin", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const token = "ab".repeat(32);
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1/login-link")) {
+        return new Response(
+          JSON.stringify({
+            token,
+            url: `https://bakery.example/?wwatch_login=${token}`,
+            expires_in: 30,
+          }),
+          { status: 200 },
+        );
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet, "board");
+  const session = await loginCookie(app, "board");
+
+  const denied = await app.request(`/api/sites/${site.id}/wp-login`, { method: "POST" });
+  assert.equal(denied.status, 401);
+
+  const login = await app.request(`/api/sites/${site.id}/wp-login`, {
+    method: "POST",
+    headers: { cookie: session },
+  });
+  assert.equal(login.status, 200);
+  assert.equal(((await login.json()) as { url: string }).url, `https://bakery.example/?wwatch_login=${token}`);
+
+  const missing = await app.request("/api/sites/nope/wp-login", {
+    method: "POST",
+    headers: { cookie: session },
+  });
+  assert.equal(missing.status, 404);
+
+  const lockedPlugin = await app.request("/api/helper-plugin");
+  assert.equal(lockedPlugin.status, 401);
+
+  const plugin = await app.request("/api/helper-plugin", { headers: { cookie: session } });
+  assert.equal(plugin.status, 200);
+  assert.match(plugin.headers.get("content-disposition") ?? "", /filename="wwatch\.php"/);
+  assert.match(await plugin.text(), /Plugin Name: wwatch/);
+  await store.close();
+});
+
+test("POST /api/sites/:id/wp-login says to install the plugin when the route is missing", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2"] }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1/login-link")) {
+        return new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet);
+  const response = await app.request(`/api/sites/${site.id}/wp-login`, { method: "POST" });
+  assert.equal(response.status, 400);
+  assert.match(((await response.json()) as { error: string }).error, /Install the wwatch plugin/);
+  await store.close();
+});
+
 async function loginCookie(app: ReturnType<typeof createApp>, password: string): Promise<string> {
   const response = await app.request("/api/login", {
     method: "POST",

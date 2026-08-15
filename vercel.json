@@ -2,7 +2,7 @@
   "functions": {
     "src/index.ts": {
       "maxDuration": 60,
-      "includeFiles": "public/**"
+      "includeFiles": "{public,plugin}/**"
     }
   },
   "crons": [

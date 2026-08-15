@@ -34,6 +34,19 @@ const wp = createServer((req, res) => {
     res.end(JSON.stringify({ status: "good", label: "ok", description: "" }));
     return;
   }
+  if (url.startsWith("/wp-json/wwatch/v1/login-link")) {
+    const token = "ab".repeat(32);
+    const host = req.headers.host ?? "127.0.0.1";
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({
+        token,
+        url: `http://${host}/?wwatch_login=${token}`,
+        expires_in: 30,
+      }),
+    );
+    return;
+  }
   res.statusCode = 404;
   res.end("no");
 });
@@ -93,6 +106,17 @@ const scanAll = await app.request("/api/scan-all");
 assert.equal(scanAll.status, 200);
 const started = (await scanAll.json()) as { started: number };
 assert.equal(started.started, 1);
+
+const login = await app.request(`/api/sites/${site.id}/wp-login`, { method: "POST" });
+assert.equal(login.status, 200);
+const minted = (await login.json()) as { url: string };
+assert.match(minted.url, /wwatch_login=/);
+assert.equal(new URL(minted.url).origin, origin);
+
+const helper = await app.request("/api/helper-plugin");
+assert.equal(helper.status, 200);
+assert.match(helper.headers.get("content-disposition") ?? "", /wwatch\.php/);
+assert.match(await helper.text(), /Plugin Name: wwatch/);
 
 wp.close();
 console.log("verify ok");

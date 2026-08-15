@@ -5,6 +5,7 @@ const modal = document.getElementById("modal");
 
 let selected = null;
 let sites = [];
+let loginError = "";
 
 document.getElementById("add").addEventListener("click", showAdd);
 document.getElementById("logout").addEventListener("click", async () => {
@@ -78,7 +79,7 @@ function renderTable() {
     table.innerHTML = `
       <div class="empty">
         <h2>No sites yet</h2>
-        <p>Add a WordPress site you already admin. wwatch talks to it with an Application Password from Users → Profile. Nothing gets installed on the site.</p>
+        <p>Add a WordPress site you already admin. wwatch talks to it with an Application Password from Users → Profile. Scans install nothing on the site. Log in from the drawer needs the optional wwatch plugin.</p>
       </div>`;
     return;
   }
@@ -106,6 +107,7 @@ function renderTable() {
   for (const el of table.querySelectorAll("[data-id]")) {
     el.addEventListener("click", () => {
       selected = el.dataset.id;
+      loginError = "";
       showSite(selected);
     });
   }
@@ -189,12 +191,15 @@ function renderDrawer(row) {
         <p class="origin"><a href="${escape(row.site.origin)}" target="_blank" rel="noreferrer">${escape(row.site.origin)}</a></p>
       </div>
       <div class="actions">
+        <button type="button" id="wp-login">Log in</button>
         <button type="button" id="scan-one">Scan</button>
         <button type="button" id="edit-site">Edit</button>
         <button type="button" id="close-drawer">Close</button>
       </div>
     </header>
     <p>${pill(row.rollup)} ${row.latest?.coreVersion ? ` · WP ${escape(row.latest.coreVersion)}` : ""}</p>
+    <p class="help">Log in opens wp-admin as the stored user. The site needs the <a href="/api/helper-plugin">wwatch plugin</a>.</p>
+    ${loginError ? `<p class="error">${escape(loginError)}</p>` : ""}
     <h3>Findings</h3>
     ${
       findings.length
@@ -218,6 +223,7 @@ function renderDrawer(row) {
     </div>`;
   drawer.querySelector("#close-drawer").addEventListener("click", closeDrawer);
   drawer.querySelector("#edit-site").addEventListener("click", () => showEdit(row));
+  drawer.querySelector("#wp-login").addEventListener("click", () => wpLogin(row));
   drawer.querySelector("#scan-one").addEventListener("click", async () => {
     await api(`/api/sites/${row.site.id}/scan`, { method: "POST" });
     await refresh();
@@ -369,8 +375,36 @@ function showEdit(row) {
   });
 }
 
+async function wpLogin(row) {
+  loginError = "";
+  const button = drawer.querySelector("#wp-login");
+  if (button) {
+    button.disabled = true;
+  }
+  const tab = window.open("about:blank", "wp-admin");
+  try {
+    const result = await api(`/api/sites/${row.site.id}/wp-login`, { method: "POST" });
+    if (tab) {
+      tab.opener = null;
+      tab.location.replace(result.url);
+    } else {
+      loginError = "The browser blocked the login window. Allow popups for this board.";
+      await showSite(row.site.id);
+    }
+  } catch (error) {
+    tab?.close();
+    loginError = error instanceof Error ? error.message : "Could not log in";
+    await showSite(row.site.id);
+  } finally {
+    if (button) {
+      button.disabled = false;
+    }
+  }
+}
+
 function closeDrawer() {
   selected = null;
+  loginError = "";
   document.body.classList.remove("drawer-open");
   drawer.hidden = true;
   drawer.classList.add("hidden");

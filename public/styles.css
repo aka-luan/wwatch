@@ -61,7 +61,12 @@ body.modal-open {
 
 .actions {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+}
+
+.drawer header .actions {
+  justify-content: flex-end;
 }
 
 button,
