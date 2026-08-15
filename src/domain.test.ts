@@ -4,8 +4,13 @@ import {
   compareVersions,
   displayRollup,
   findingCounts,
+  helperCan,
+  helperFromCapabilities,
+  parseHelperInfo,
   parseOrigin,
   parsePluginRef,
+  parseThemeSlug,
+  parseUpdateTarget,
   pluginSlug,
   rollupOf,
   scanSummary,
@@ -37,6 +42,44 @@ test("parseOrigin rejects link-local and cloud metadata hosts", () => {
 test("pluginSlug uses the directory, not the file", () => {
   const ref = parsePluginRef("woocommerce/woocommerce.php");
   assert.equal(pluginSlug(ref), "woocommerce");
+});
+
+test("parseThemeSlug rejects paths", () => {
+  assert.equal(parseThemeSlug("twentytwentyfour"), "twentytwentyfour");
+  assert.throws(() => parseThemeSlug("../evil"), /stylesheet/);
+  assert.throws(() => parseThemeSlug("a/b"), /stylesheet/);
+});
+
+test("parseUpdateTarget reads plugin, theme, core, and all", () => {
+  assert.deepEqual(parseUpdateTarget({ kind: "core" }), { kind: "core" });
+  assert.deepEqual(parseUpdateTarget({ kind: "all" }), { kind: "all" });
+  assert.deepEqual(parseUpdateTarget({ kind: "plugin", plugin: "akismet/akismet.php" }), {
+    kind: "plugin",
+    plugin: "akismet/akismet.php",
+  });
+  assert.deepEqual(parseUpdateTarget({ kind: "theme", theme: "twentytwentyfour" }), {
+    kind: "theme",
+    theme: "twentytwentyfour",
+  });
+  assert.throws(() => parseUpdateTarget({ kind: "plugins" }), /plugin, theme, core, or all/);
+});
+
+test("helperFromCapabilities ignores unknown capability names", () => {
+  assert.deepEqual(helperFromCapabilities({ version: "1.1.0", capabilities: ["login", "repair", "update"] }), {
+    kind: "installed",
+    version: "1.1.0",
+    capabilities: ["login", "update"],
+  });
+  assert.equal(parseHelperInfo({ kind: "missing" })?.kind, "missing");
+  assert.equal(helperCan({ kind: "missing" }, "update"), false);
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.0.0", capabilities: ["login"] }, "update"),
+    false,
+  );
+  assert.equal(
+    helperCan({ kind: "installed", version: "1.1.0", capabilities: ["login", "update"] }, "update"),
+    true,
+  );
 });
 
 test("compareVersions does not treat 6.4.10 as behind 6.4.2", () => {
@@ -76,6 +119,7 @@ test("displayRollup keeps the last finished rollup while a scan runs", () => {
     coreVersion: "6.7.1",
     plugins: [],
     findings: [],
+    helper: null,
   };
   assert.equal(displayRollup({ latest, running: { id: "s2" as never, startedAt: "t" } }), "degraded");
 });
@@ -102,6 +146,7 @@ test("scanSummary keeps rollup, time, and counts without findings", () => {
       { kind: "down", severity: "crit", title: "down", detail: "" },
       { kind: "rate_limited", severity: "warn", title: "rl", detail: "" },
     ],
+    helper: null,
   });
   assert.deepEqual(summary, {
     id: "c1",

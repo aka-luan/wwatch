@@ -5,6 +5,7 @@ import {
   asScanId,
   asSiteId,
   displayRollup,
+  parseHelperInfo,
   type Finding,
   type InstalledPlugin,
   type Origin,
@@ -119,8 +120,8 @@ export class Store {
     await this.#ready;
     await this.#db.execute({
       sql: `INSERT INTO scans
-              (id, site_id, started_at, finished_at, rollup, core_version, plugins_json, findings_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+              (id, site_id, started_at, finished_at, rollup, core_version, plugins_json, findings_json, helper_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       args: [
         snapshot.id,
         snapshot.siteId,
@@ -130,6 +131,7 @@ export class Store {
         snapshot.coreVersion,
         JSON.stringify(snapshot.plugins),
         JSON.stringify(snapshot.findings),
+        snapshot.helper ? JSON.stringify(snapshot.helper) : null,
       ],
     });
   }
@@ -242,7 +244,8 @@ export class Store {
         rollup TEXT NOT NULL,
         core_version TEXT,
         plugins_json TEXT NOT NULL,
-        findings_json TEXT NOT NULL
+        findings_json TEXT NOT NULL,
+        helper_json TEXT
       );
       CREATE TABLE IF NOT EXISTS jobs (
         site_id TEXT PRIMARY KEY,
@@ -256,6 +259,7 @@ export class Store {
       );
       CREATE INDEX IF NOT EXISTS scans_site_finished ON scans (site_id, finished_at DESC);
     `);
+    await this.#ensureHelperColumn();
     await this.#wrapExistingPasswords();
     if (config.url.startsWith("file:")) {
       try {
@@ -284,6 +288,17 @@ export class Store {
       username: text(row, "username"),
       applicationPassword: unwrapPassword(text(row, "application_password"), this.#key),
     };
+  }
+
+  async #ensureHelperColumn(): Promise<void> {
+    try {
+      await this.#db.execute(`ALTER TABLE scans ADD COLUMN helper_json TEXT`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      if (!/duplicate column/i.test(message)) {
+        throw error;
+      }
+    }
   }
 
   async #wrapExistingPasswords(): Promise<void> {
@@ -368,7 +383,19 @@ function fromScanRow(row: Record<string, unknown>): ScanSnapshot {
     coreVersion: typeof core === "string" ? core : null,
     plugins: JSON.parse(text(row, "plugins_json")) as InstalledPlugin[],
     findings: JSON.parse(text(row, "findings_json")) as Finding[],
+    helper: parseHelperJson(row.helper_json),
   };
+}
+
+function parseHelperJson(raw: unknown): ScanSnapshot["helper"] {
+  if (typeof raw !== "string" || !raw) {
+    return null;
+  }
+  try {
+    return parseHelperInfo(JSON.parse(raw));
+  } catch {
+    return null;
+  }
 }
 
 function freshJob(row: Record<string, unknown>): { id: ScanId; startedAt: string } | null {

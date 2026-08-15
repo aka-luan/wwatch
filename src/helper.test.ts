@@ -1,7 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { asSiteId, parseOrigin } from "./domain.js";
-import { helperPluginFile, loginUrlFrom, mintLoginLink } from "./helper.js";
+import { asSiteId, parseOrigin, parsePluginRef } from "./domain.js";
+import { applyHelperUpdate, helperPluginFile, loginUrlFrom, mintLoginLink, probeHelper } from "./helper.js";
+import type { ScanDeps } from "./scan.js";
 
 const site = {
   id: asSiteId("site-1"),
@@ -92,4 +93,67 @@ test("helperPluginFile serves the WordPress plugin from disk", () => {
   assert.match(file.body, /wwatch\/v1/);
   assert.match(file.body, /login-link/);
   assert.match(file.body, /capabilities/);
+  assert.match(file.body, /wwatch_run_update/);
+});
+
+test("probeHelper records an installed helper and a missing route", async () => {
+  const installed = await probeHelper(site, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      assert.equal(String(input), "https://bakery.example/wp-json/wwatch/v1");
+      return new Response(JSON.stringify({ version: "1.1.0", capabilities: ["login", "update"] }), {
+        status: 200,
+      });
+    },
+  });
+  assert.deepEqual(installed, {
+    kind: "installed",
+    version: "1.1.0",
+    capabilities: ["login", "update"],
+  });
+
+  const missing = await probeHelper(site, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async () => new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 }),
+  });
+  assert.deepEqual(missing, { kind: "missing" });
+});
+
+test("applyHelperUpdate posts plugin, theme, core, and all", async () => {
+  const calls: string[] = [];
+  const deps: ScanDeps = {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? "GET"} ${url} ${String(init?.body ?? "")}`);
+      assert.equal(url, "https://bakery.example/wp-json/wwatch/v1/update");
+      assert.equal(init?.method, "POST");
+      return new Response(JSON.stringify({ ok: true, detail: "Updated akismet/akismet.php." }), { status: 200 });
+    },
+  };
+  const plugin = await applyHelperUpdate(site, { kind: "plugin", plugin: parsePluginRef("akismet/akismet.php") }, deps);
+  assert.match(plugin.detail, /akismet/);
+  const theme = await applyHelperUpdate(site, { kind: "theme", theme: "twentytwentyfour" }, deps);
+  assert.match(theme.detail, /Updated/);
+  await applyHelperUpdate(site, { kind: "core" }, deps);
+  await applyHelperUpdate(site, { kind: "all" }, deps);
+  assert.equal(calls.length, 5);
+  assert.match(calls[0] ?? "", /"kind":"plugin"/);
+  assert.match(calls[3] ?? "", /"kind":"plugins"/);
+  assert.match(calls[4] ?? "", /"kind":"themes"/);
+});
+
+test("applyHelperUpdate asks for the current plugin when the update route is missing", async () => {
+  await assert.rejects(
+    () =>
+      applyHelperUpdate(site, { kind: "core" }, {
+        now: () => new Date(),
+        tlsDaysLeft: async () => null,
+        fetch: async () => new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 }),
+      }),
+    /current wwatch plugin/,
+  );
 });

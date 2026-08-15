@@ -7,6 +7,17 @@ export type PluginStatus = "active" | "inactive";
 export type Severity = "info" | "warn" | "crit";
 export type FinishedRollup = "ok" | "degraded" | "down" | "auth_failed";
 export type Rollup = "never" | "running" | FinishedRollup;
+export type HelperCapability = "login" | "update";
+export type HelperInfo =
+  | { kind: "missing" }
+  | { kind: "installed"; version: string; capabilities: HelperCapability[] };
+export type UpdateTarget =
+  | { kind: "plugin"; plugin: PluginRef }
+  | { kind: "theme"; theme: string }
+  | { kind: "core" }
+  | { kind: "all" };
+
+const HELPER_CAPABILITIES: readonly HelperCapability[] = ["login", "update"];
 
 export type Site = {
   id: SiteId;
@@ -99,6 +110,7 @@ export type ScanSnapshot = {
   coreVersion: string | null;
   plugins: InstalledPlugin[];
   findings: Finding[];
+  helper: HelperInfo | null;
 };
 
 export type RunningScan = { id: ScanId; startedAt: string };
@@ -193,6 +205,84 @@ export function pluginSlug(ref: PluginRef): string {
     throw new Error("Plugin ref missing directory");
   }
   return dir;
+}
+
+export function parseThemeSlug(raw: string): string {
+  const trimmed = raw.trim();
+  if (!trimmed || trimmed.includes("/") || trimmed.includes("..") || !/^[a-zA-Z0-9._-]+$/.test(trimmed)) {
+    throw new Error("Theme slug must look like a stylesheet directory");
+  }
+  return trimmed;
+}
+
+export function parseUpdateTarget(body: Record<string, unknown>): UpdateTarget {
+  const kind = body.kind;
+  if (kind === "core") {
+    return { kind: "core" };
+  }
+  if (kind === "all") {
+    return { kind: "all" };
+  }
+  if (kind === "plugin") {
+    return { kind: "plugin", plugin: parsePluginRef(String(body.plugin ?? "")) };
+  }
+  if (kind === "theme") {
+    return { kind: "theme", theme: parseThemeSlug(String(body.theme ?? "")) };
+  }
+  throw new Error("Update kind must be plugin, theme, core, or all");
+}
+
+export function parseHelperInfo(raw: unknown): HelperInfo | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  if (!("kind" in raw) || typeof raw.kind !== "string") {
+    return null;
+  }
+  if (raw.kind === "missing") {
+    return { kind: "missing" };
+  }
+  if (raw.kind !== "installed") {
+    return null;
+  }
+  if (!("version" in raw) || typeof raw.version !== "string" || !raw.version.trim()) {
+    return null;
+  }
+  const capabilities: HelperCapability[] = [];
+  if ("capabilities" in raw && Array.isArray(raw.capabilities)) {
+    for (const item of raw.capabilities) {
+      if (typeof item === "string" && isHelperCapability(item) && !capabilities.includes(item)) {
+        capabilities.push(item);
+      }
+    }
+  }
+  return { kind: "installed", version: raw.version.trim(), capabilities };
+}
+
+export function helperFromCapabilities(raw: unknown): HelperInfo | null {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return null;
+  }
+  if (!("version" in raw) || typeof raw.version !== "string" || !raw.version.trim()) {
+    return null;
+  }
+  const capabilities: HelperCapability[] = [];
+  if ("capabilities" in raw && Array.isArray(raw.capabilities)) {
+    for (const item of raw.capabilities) {
+      if (typeof item === "string" && isHelperCapability(item) && !capabilities.includes(item)) {
+        capabilities.push(item);
+      }
+    }
+  }
+  return { kind: "installed", version: raw.version.trim(), capabilities };
+}
+
+export function helperCan(helper: HelperInfo | null, capability: HelperCapability): boolean {
+  return helper?.kind === "installed" && helper.capabilities.includes(capability);
+}
+
+function isHelperCapability(value: string): value is HelperCapability {
+  return HELPER_CAPABILITIES.some((item) => item === value);
 }
 
 export function compareVersions(

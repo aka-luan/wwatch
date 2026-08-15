@@ -1,6 +1,6 @@
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
-import { asSiteId } from "./domain.js";
+import { asSiteId, parseUpdateTarget } from "./domain.js";
 import { Fleet } from "./fleet.js";
 import { helperPluginFile } from "./helper.js";
 
@@ -145,6 +145,20 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
   app.post("/api/sites/:id/wp-login", async (c) => {
     try {
       return c.json(await fleet.wpLogin(asSiteId(c.req.param("id"))));
+    } catch (error) {
+      const text = message(error);
+      return c.json({ error: text }, text === "Unknown site" ? 404 : 400);
+    }
+  });
+
+  app.post("/api/sites/:id/update", async (c) => {
+    const body = await readJsonObject(c);
+    if (!body) {
+      return c.json({ error: "invalid json" }, 400);
+    }
+    try {
+      const result = await fleet.applyUpdate(asSiteId(c.req.param("id")), parseUpdateTarget(body), deferFrom(c));
+      return c.json(result);
     } catch (error) {
       const text = message(error);
       return c.json({ error: text }, text === "Unknown site" ? 404 : 400);
