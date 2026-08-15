@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
+import { AddSiteDialog } from "@/components/add-site-dialog";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
@@ -214,78 +215,6 @@ function Board() {
         />
       ) : null}
     </div>
-  );
-}
-
-function AddSiteDialog({
-  open,
-  onOpenChange,
-  onCreated,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onCreated: (id: string) => Promise<void>;
-}) {
-  const [error, setError] = useState("");
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]" showCloseButton={false}>
-        <form
-          onSubmit={(event) => {
-            event.preventDefault();
-            const data = Object.fromEntries(new FormData(event.currentTarget));
-            setError("");
-            void (async () => {
-              try {
-                const site = await api<{ id: string }>("/api/sites", {
-                  method: "POST",
-                  headers: { "content-type": "application/json" },
-                  body: JSON.stringify(data),
-                });
-                onOpenChange(false);
-                await api(`/api/sites/${site.id}/scan`, { method: "POST" });
-                toast.success("Scan started");
-                await onCreated(site.id);
-              } catch (err) {
-                setError(err instanceof Error ? err.message : "Could not connect");
-              }
-            })();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>Add a WordPress site</DialogTitle>
-            <DialogDescription>
-              In wp-admin open Users → Profile → Application Passwords. Create one on an administrator
-              account. Username is that account's login (what you type at wp-login), not the password's
-              name.
-            </DialogDescription>
-          </DialogHeader>
-          <label>
-            Name
-            <Input name="name" placeholder="Bakery" />
-          </label>
-          <label>
-            Site URL
-            <Input name="origin" required placeholder="https://bakery.example" />
-          </label>
-          <label>
-            WP username
-            <Input name="username" required placeholder="your WordPress login" autoComplete="username" />
-          </label>
-          <label>
-            Application password
-            <Input name="applicationPassword" required autoComplete="current-password" />
-          </label>
-          <p className="error">{error}</p>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-              Cancel
-            </Button>
-            <Button type="submit">Connect</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
   );
 }
 
