@@ -1,38 +1,23 @@
 import { EmptyNote } from "@/components/finding-row";
-import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusDot } from "@/components/status-dot";
 import { timelineWhen } from "@/lib/format";
 import { scanHistoryEntries, scansForTimeline, type ScanHistoryEntry } from "@/lib/scan-history";
 import type { SitePage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function ScanTimeline({
-  page,
-  scanning,
-}: {
-  page: Pick<SitePage, "latest" | "history">;
-  scanning: boolean;
-}) {
+/** Compact newest-first history. Scanning chrome lives on the sheet banner, not here. */
+export function ScanTimeline({ page }: { page: Pick<SitePage, "latest" | "history"> }) {
   const entries = scanHistoryEntries(scansForTimeline(page));
-  if (!scanning && entries.length === 0) {
+  if (entries.length === 0) {
     return <EmptyNote>No scans yet.</EmptyNote>;
   }
 
   return (
-    <div>
-      {scanning ? (
-        <div className={entries.length ? "mb-2" : undefined}>
-          <ProcessingIndicator label="Scanning now" />
-        </div>
-      ) : null}
-      {entries.length ? (
-        <ol className="m-0 list-none p-0" aria-label="Scan history, newest first">
-          {entries.map((entry, index) => (
-            <ScanTimelineItem key={entry.scan.id} entry={entry} last={index === entries.length - 1} />
-          ))}
-        </ol>
-      ) : null}
-    </div>
+    <ol className="m-0 list-none p-0" aria-label="Scan history, newest first">
+      {entries.map((entry, index) => (
+        <ScanTimelineItem key={entry.scan.id} entry={entry} last={index === entries.length - 1} />
+      ))}
+    </ol>
   );
 }
 
@@ -44,14 +29,11 @@ function ScanTimelineItem({ entry, last }: { entry: ScanHistoryEntry; last: bool
   return (
     <li className="grid grid-cols-[0.875rem_minmax(0,1fr)] gap-x-2.5">
       <div className="relative flex justify-center pt-1">
-        {failed ? (
-          <span
-            className="size-2 shrink-0 rounded-full border border-destructive bg-transparent"
-            aria-hidden
-          />
-        ) : (
-          <StatusDot status={entry.status ?? "healthy"} decorative className="size-2" />
-        )}
+        <StatusDot
+          status={failed ? "critical" : (entry.status ?? "healthy")}
+          decorative
+          className="size-2"
+        />
         {last ? null : (
           <span className="absolute top-[0.7rem] bottom-0 w-px bg-border" aria-hidden />
         )}

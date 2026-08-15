@@ -241,13 +241,17 @@ function SiteActionCenter({
             }}
           >
             {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
-            Scan now
+            {scanning ? "Scanning…" : "Scan now"}
           </Button>
         </div>
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <HelperHelp helper={helper} />
-        {helperError ? <p className="error">{helperError}</p> : null}
+        {helperError ? (
+          <p className="error" role="alert" aria-live="assertive">
+            {helperError}
+          </p>
+        ) : null}
         {page.latest ? (
           sections.length ? (
             sections.map((section, index) => (
@@ -298,7 +302,7 @@ function SiteActionCenter({
           <h3 id="scan-history-heading" className="mb-2 text-sm font-medium">
             Scan history
           </h3>
-          <ScanTimeline page={page} scanning={scanning} />
+          <ScanTimeline page={page} />
         </section>
         <SecondaryBlock title="Site configuration">
           {plugins.length ? (
@@ -457,9 +461,9 @@ function SiteActionCenter({
 function SecondaryBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Collapsible className="border-b border-border py-1">
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 rounded-md py-2 text-left text-sm font-medium hover:bg-muted/50">
+      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md py-2 text-left text-sm font-medium hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
         {title}
-        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" />
+        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
       </CollapsibleTrigger>
       <CollapsibleContent className="pb-3">{children}</CollapsibleContent>
     </Collapsible>
@@ -697,7 +701,7 @@ function PluginRow({
   const update = findings.find((item) => item.kind === "plugin_update" && item.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
   return (
-    <div className="flex flex-col gap-2 border-t border-border py-3 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
         <p className="[overflow-wrap:anywhere]">
           <strong>{plugin.name}</strong>{" "}
@@ -725,9 +729,10 @@ function PluginRow({
           </RowAction>
         ) : null}
         <Button
-          variant="outline"
+          variant="ghost"
           size="sm"
           type="button"
+          className="h-7 px-2 text-muted-foreground hover:text-foreground"
           onClick={() => onToggle({ plugin: plugin.ref, name: plugin.name, status: next })}
         >
           Set {next}

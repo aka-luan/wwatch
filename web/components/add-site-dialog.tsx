@@ -296,7 +296,6 @@ function Field({
         autoFocus={autoFocus}
         aria-invalid={error ? true : undefined}
         aria-describedby={describedBy}
-        className="h-9"
       />
       {error ? (
         <p id={errorId} className="m-0 text-[12px] leading-4 text-destructive" role="alert">

@@ -39,7 +39,7 @@ export function FindingRow({
   return (
     <div
       className={cn(
-        "group/finding flex flex-col gap-2 border-t border-border py-3 transition-colors hover:bg-muted/30",
+        "group/finding flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30",
         "sm:flex-row sm:items-start sm:justify-between sm:gap-3",
       )}
     >

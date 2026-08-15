@@ -59,8 +59,14 @@ export function UpdatesEntry({
   }
   const updatesLabel = summary.updateCount === 1 ? "update" : "updates";
   const sitesLabel = summary.siteCount === 1 ? "site" : "sites";
+  const summaryText = `${summary.updateCount} ${updatesLabel} available across ${summary.siteCount} ${sitesLabel}`;
   return (
-    <button type="button" className="updates-entry" onClick={onReview}>
+    <button
+      type="button"
+      className="updates-entry"
+      aria-label={`Review updates: ${summaryText}`}
+      onClick={onReview}
+    >
       <span>
         <b>{summary.updateCount}</b> {updatesLabel} available across <b>{summary.siteCount}</b>{" "}
         {sitesLabel}
@@ -136,7 +142,7 @@ export function UpdatesReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[min(40rem,90vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+        <DialogContent className="flex max-h-[min(40rem,90dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
           <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-4 pr-12 text-left">
             <DialogTitle>Updates</DialogTitle>
             <DialogDescription>
@@ -325,10 +331,10 @@ function UpdateItemRow({
           </div>
         </div>
         <Button
-          variant="ghost"
-          size="sm"
+          variant="outline"
+          size="xs"
           type="button"
-          className="h-7 self-end px-2 text-muted-foreground hover:text-foreground"
+          className="self-end"
           disabled={!actionsEnabled}
           onClick={onUpdate}
         >
