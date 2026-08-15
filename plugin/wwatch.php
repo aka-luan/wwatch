@@ -1,8 +1,8 @@
 <?php
 /**
  * Plugin Name: wwatch
- * Description: Lets the wwatch board log you into wp-admin and update plugins, themes, and core.
- * Version: 1.1.0
+ * Description: Lets the wwatch board log you into wp-admin, update plugins, themes, and core, and fix a few exposed files.
+ * Version: 1.2.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: MIT
@@ -12,11 +12,22 @@ if (!defined("ABSPATH")) {
   exit();
 }
 
-const WWATCH_VERSION = "1.1.0";
+const WWATCH_VERSION = "1.2.0";
 const WWATCH_LOGIN_TTL = 30;
+const WWATCH_REPAIR_PATHS = [
+  "/debug.log",
+  "/wp-content/debug.log",
+  "/readme.html",
+  "/license.txt",
+  "/wp-config.php.bak",
+  "/wp-config.php.save",
+  "/wp-config.php.old",
+];
 
 add_action("rest_api_init", "wwatch_register_rest");
 add_action("init", "wwatch_consume_login", 0);
+add_action("init", "wwatch_block_xmlrpc", 0);
+add_filter("xmlrpc_enabled", "wwatch_xmlrpc_enabled");
 
 function wwatch_register_rest(): void
 {
@@ -48,6 +59,21 @@ function wwatch_register_rest(): void
       ],
     ],
   ]);
+  register_rest_route("wwatch/v1", "/repair", [
+    "methods" => "POST",
+    "callback" => "wwatch_run_repair",
+    "permission_callback" => "wwatch_can_manage",
+    "args" => [
+      "kind" => [
+        "required" => true,
+        "type" => "string",
+        "enum" => ["exposed_path", "xmlrpc"],
+      ],
+      "path" => [
+        "type" => "string",
+      ],
+    ],
+  ]);
 }
 
 function wwatch_can_manage(): bool
@@ -59,7 +85,7 @@ function wwatch_capabilities()
 {
   return [
     "version" => WWATCH_VERSION,
-    "capabilities" => ["login", "update"],
+    "capabilities" => ["login", "update", "repair"],
   ];
 }
 
@@ -388,4 +414,166 @@ function wwatch_skin_messages(Automatic_Upgrader_Skin $skin): string
     }
   }
   return implode(" ", $text);
+}
+
+function wwatch_run_repair(WP_REST_Request $request)
+{
+  $kind = $request->get_param("kind");
+  if ($kind === "xmlrpc") {
+    return wwatch_repair_xmlrpc();
+  }
+  return wwatch_repair_exposed_path((string) $request->get_param("path"));
+}
+
+function wwatch_repair_xmlrpc()
+{
+  update_option("wwatch_xmlrpc_disabled", 1, true);
+  return [
+    "ok" => true,
+    "kind" => "xmlrpc",
+    "detail" => "XML-RPC disabled.",
+  ];
+}
+
+function wwatch_xmlrpc_enabled($enabled)
+{
+  if (get_option("wwatch_xmlrpc_disabled")) {
+    return false;
+  }
+  return $enabled;
+}
+
+function wwatch_block_xmlrpc(): void
+{
+  if (!defined("XMLRPC_REQUEST") || !XMLRPC_REQUEST) {
+    return;
+  }
+  if (!get_option("wwatch_xmlrpc_disabled")) {
+    return;
+  }
+  status_header(403);
+  nocache_headers();
+  header("Content-Type: text/plain; charset=utf-8");
+  echo "XML-RPC is disabled.";
+  exit();
+}
+
+function wwatch_repair_exposed_path(string $path)
+{
+  if (!in_array($path, WWATCH_REPAIR_PATHS, true)) {
+    return new WP_Error("wwatch_bad_path", "This path cannot be repaired from the board.", [
+      "status" => 400,
+    ]);
+  }
+  if ($path === "/debug.log" || $path === "/wp-content/debug.log") {
+    return wwatch_delete_debug_logs();
+  }
+  $basename = basename($path);
+  if ($basename === "wp-config.php") {
+    return new WP_Error("wwatch_bad_path", "wp-config.php cannot be deleted.", ["status" => 400]);
+  }
+  $deleted = wwatch_delete_under(ABSPATH, $basename);
+  if (is_wp_error($deleted)) {
+    return $deleted;
+  }
+  return [
+    "ok" => true,
+    "kind" => "exposed_path",
+    "path" => $path,
+    "detail" => $deleted["detail"],
+  ];
+}
+
+function wwatch_delete_debug_logs()
+{
+  $root = wwatch_delete_under(ABSPATH, "debug.log");
+  if (is_wp_error($root)) {
+    return $root;
+  }
+  $content = wwatch_delete_under(WP_CONTENT_DIR, "debug.log");
+  if (is_wp_error($content)) {
+    return $content;
+  }
+  $names = [];
+  if (!empty($root["deleted"])) {
+    $names[] = "debug.log";
+  }
+  if (!empty($content["deleted"])) {
+    $names[] = "wp-content/debug.log";
+  }
+  if (!$names) {
+    return [
+      "ok" => true,
+      "kind" => "exposed_path",
+      "path" => "/debug.log",
+      "detail" => "debug.log was already gone.",
+    ];
+  }
+  return [
+    "ok" => true,
+    "kind" => "exposed_path",
+    "path" => "/debug.log",
+    "detail" => "Deleted " . implode(" and ", $names) . ".",
+  ];
+}
+
+function wwatch_delete_under(string $dir, string $basename)
+{
+  if (
+    $basename === "" ||
+    $basename === "wp-config.php" ||
+    strpos($basename, "/") !== false ||
+    strpos($basename, "\\") !== false ||
+    strpos($basename, "..") !== false
+  ) {
+    return new WP_Error("wwatch_bad_path", "This path cannot be repaired from the board.", [
+      "status" => 400,
+    ]);
+  }
+
+  $root = realpath($dir);
+  if ($root === false) {
+    return new WP_Error("wwatch_bad_path", "This path cannot be repaired from the board.", [
+      "status" => 400,
+    ]);
+  }
+
+  $candidate = rtrim($dir, "/\\") . DIRECTORY_SEPARATOR . $basename;
+  if (!file_exists($candidate)) {
+    return [
+      "ok" => true,
+      "deleted" => false,
+      "detail" => $basename . " was already gone.",
+    ];
+  }
+
+  $real = realpath($candidate);
+  if ($real === false || basename($real) !== $basename || basename($real) === "wp-config.php") {
+    return new WP_Error("wwatch_bad_path", "This path cannot be repaired from the board.", [
+      "status" => 400,
+    ]);
+  }
+
+  $prefix = $root . DIRECTORY_SEPARATOR;
+  if (strpos($real, $prefix) !== 0 && $real !== $root) {
+    return new WP_Error("wwatch_bad_path", "File must stay under the WordPress root.", [
+      "status" => 400,
+    ]);
+  }
+
+  if (dirname($real) !== $root) {
+    return new WP_Error("wwatch_bad_path", "File must stay under the WordPress root.", [
+      "status" => 400,
+    ]);
+  }
+
+  if (!@unlink($real)) {
+    return new WP_Error("wwatch_unlink", "Could not delete " . $basename . ".", ["status" => 500]);
+  }
+
+  return [
+    "ok" => true,
+    "deleted" => true,
+    "detail" => "Deleted " . $basename . ".",
+  ];
 }

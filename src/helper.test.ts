@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { asSiteId, parseOrigin, parsePluginRef } from "./domain.js";
-import { applyHelperUpdate, helperPluginFile, loginUrlFrom, mintLoginLink, probeHelper } from "./helper.js";
+import { applyHelperRepair, applyHelperUpdate, helperPluginFile, loginUrlFrom, mintLoginLink, probeHelper } from "./helper.js";
 import type { ScanDeps } from "./scan.js";
 
 const site = {
@@ -94,6 +94,13 @@ test("helperPluginFile serves the WordPress plugin from disk", () => {
   assert.match(file.body, /login-link/);
   assert.match(file.body, /capabilities/);
   assert.match(file.body, /wwatch_run_update/);
+  assert.match(file.body, /wwatch_run_repair/);
+  assert.match(file.body, /Version: 1\.2\.0/);
+  assert.match(file.body, /"repair"/);
+  assert.match(file.body, /xmlrpc_enabled/);
+  assert.match(file.body, /wp-config\.php\.bak/);
+  assert.match(file.body, /wwatch_xmlrpc_disabled/);
+  assert.doesNotMatch(file.body, /unlink\([^)]*wp-config\.php["']/);
 });
 
 test("probeHelper records an installed helper and a missing route", async () => {
@@ -150,6 +157,41 @@ test("applyHelperUpdate asks for the current plugin when the update route is mis
   await assert.rejects(
     () =>
       applyHelperUpdate(site, { kind: "core" }, {
+        now: () => new Date(),
+        tlsDaysLeft: async () => null,
+        fetch: async () => new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 }),
+      }),
+    /current wwatch plugin/,
+  );
+});
+
+test("applyHelperRepair posts xmlrpc and allowlisted paths", async () => {
+  const calls: string[] = [];
+  const deps: ScanDeps = {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input, init) => {
+      const url = String(input);
+      calls.push(`${init?.method ?? "GET"} ${url} ${String(init?.body ?? "")}`);
+      assert.equal(url, "https://bakery.example/wp-json/wwatch/v1/repair");
+      assert.equal(init?.method, "POST");
+      return new Response(JSON.stringify({ ok: true, detail: "Deleted debug.log." }), { status: 200 });
+    },
+  };
+  const log = await applyHelperRepair(site, { kind: "exposed_path", path: "/debug.log" }, deps);
+  assert.match(log.detail, /debug\.log/);
+  await applyHelperRepair(site, { kind: "xmlrpc" }, deps);
+  await applyHelperRepair(site, { kind: "exposed_path", path: "/wp-config.php.bak" }, deps);
+  assert.equal(calls.length, 3);
+  assert.match(calls[0] ?? "", /"kind":"exposed_path"/);
+  assert.match(calls[1] ?? "", /"kind":"xmlrpc"/);
+  assert.match(calls[2] ?? "", /wp-config\.php\.bak/);
+});
+
+test("applyHelperRepair asks for the current plugin when the repair route is missing", async () => {
+  await assert.rejects(
+    () =>
+      applyHelperRepair(site, { kind: "xmlrpc" }, {
         now: () => new Date(),
         tlsDaysLeft: async () => null,
         fetch: async () => new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 }),

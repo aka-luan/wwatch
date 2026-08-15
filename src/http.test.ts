@@ -6,6 +6,7 @@ import { test } from "node:test";
 import { Fleet } from "./fleet.js";
 import { createApp, SESSION_TTL_MS, sessionToken } from "./http.js";
 import { Store } from "./store.js";
+import { asScanId } from "./domain.js";
 
 test("cron GET /api/scan-all needs the bearer secret when the board has a password", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
@@ -358,6 +359,105 @@ test("POST /api/sites/:id/update runs the helper then starts a scan", async () =
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ kind: "core" }),
+  });
+  assert.equal(missing.status, 404);
+  for (let i = 0; i < 50; i += 1) {
+    const row = (await fleet.overview())[0];
+    if (row && !row.running && row.latest) {
+      await store.close();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await store.close();
+  throw new Error("scan did not finish");
+});
+
+test("POST /api/sites/:id/repair runs the helper then starts a scan", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const repairs: string[] = [];
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2", "wwatch/v1"] }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1/repair")) {
+        repairs.push(String(init?.body ?? ""));
+        return new Response(JSON.stringify({ ok: true, detail: "Deleted debug.log." }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1")) {
+        return new Response(JSON.stringify({ version: "1.2.0", capabilities: ["login", "update", "repair"] }), {
+          status: 200,
+        });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet);
+  const badPath = await app.request(`/api/sites/${site.id}/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "exposed_path", path: "/wp-config.php" }),
+  });
+  assert.equal(badPath.status, 400);
+  assert.match(((await badPath.json()) as { error: string }).error, /cannot be repaired/);
+
+  const git = await app.request(`/api/sites/${site.id}/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "exposed_path", path: "/.git/HEAD" }),
+  });
+  assert.equal(git.status, 400);
+
+  await store.putJob(site.id, { id: asScanId("running-1"), startedAt: new Date().toISOString() });
+  const busy = await app.request(`/api/sites/${site.id}/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "xmlrpc" }),
+  });
+  assert.equal(busy.status, 400);
+  assert.match(((await busy.json()) as { error: string }).error, /Wait for the current scan/);
+  await store.deleteJob(site.id);
+
+  const repaired = await app.request(`/api/sites/${site.id}/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "exposed_path", path: "/debug.log" }),
+  });
+  assert.equal(repaired.status, 200);
+  assert.match(((await repaired.json()) as { detail: string }).detail, /debug\.log/);
+  assert.match(repairs[0] ?? "", /"kind":"exposed_path"/);
+
+  for (let i = 0; i < 50; i += 1) {
+    const row = (await fleet.overview())[0];
+    if (row && !row.running && row.latest) {
+      break;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+
+  const xmlrpcOk = await app.request(`/api/sites/${site.id}/repair`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "xmlrpc" }),
+  });
+  assert.equal(xmlrpcOk.status, 200);
+  assert.match(repairs[1] ?? "", /"kind":"xmlrpc"/);
+
+  const missing = await app.request("/api/sites/nope/repair", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "xmlrpc" }),
   });
   assert.equal(missing.status, 404);
   for (let i = 0; i < 50; i += 1) {

@@ -7,7 +7,7 @@ export type PluginStatus = "active" | "inactive";
 export type Severity = "info" | "warn" | "crit";
 export type FinishedRollup = "ok" | "degraded" | "down" | "auth_failed";
 export type Rollup = "never" | "running" | FinishedRollup;
-export type HelperCapability = "login" | "update";
+export type HelperCapability = "login" | "update" | "repair";
 export type HelperInfo =
   | { kind: "missing" }
   | { kind: "installed"; version: string; capabilities: HelperCapability[] };
@@ -16,8 +16,19 @@ export type UpdateTarget =
   | { kind: "theme"; theme: string }
   | { kind: "core" }
   | { kind: "all" };
+export const REPAIRABLE_PATHS = [
+  "/debug.log",
+  "/wp-content/debug.log",
+  "/readme.html",
+  "/license.txt",
+  "/wp-config.php.bak",
+  "/wp-config.php.save",
+  "/wp-config.php.old",
+] as const;
+export type RepairablePath = (typeof REPAIRABLE_PATHS)[number];
+export type RepairTarget = { kind: "exposed_path"; path: RepairablePath } | { kind: "xmlrpc" };
 
-const HELPER_CAPABILITIES: readonly HelperCapability[] = ["login", "update"];
+const HELPER_CAPABILITIES: readonly HelperCapability[] = ["login", "update", "repair"];
 
 export type Site = {
   id: SiteId;
@@ -230,6 +241,28 @@ export function parseUpdateTarget(body: Record<string, unknown>): UpdateTarget {
     return { kind: "theme", theme: parseThemeSlug(String(body.theme ?? "")) };
   }
   throw new Error("Update kind must be plugin, theme, core, or all");
+}
+
+export function parseRepairTarget(body: Record<string, unknown>): RepairTarget {
+  const kind = body.kind;
+  if (kind === "xmlrpc") {
+    return { kind: "xmlrpc" };
+  }
+  if (kind === "exposed_path") {
+    const path = typeof body.path === "string" ? body.path : "";
+    if (!isRepairablePath(path)) {
+      throw new Error("This path cannot be repaired from the board");
+    }
+    return { kind: "exposed_path", path };
+  }
+  throw new Error("Repair kind must be exposed_path or xmlrpc");
+}
+
+export function isRepairablePath(path: string): path is RepairablePath {
+  if (!path.startsWith("/") || path.includes("..") || path.includes("\\") || path.includes("//")) {
+    return false;
+  }
+  return (REPAIRABLE_PATHS as readonly string[]).includes(path);
 }
 
 export function parseHelperInfo(raw: unknown): HelperInfo | null {

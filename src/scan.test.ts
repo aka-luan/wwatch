@@ -131,7 +131,7 @@ test("runScan records the helper plugin when wwatch/v1 answers", async () => {
       return;
     }
     if (url === "/wp-json/wwatch/v1" || url === "/wp-json/wwatch/v1/") {
-      json(res, { version: "1.1.0", capabilities: ["login", "update"] });
+      json(res, { version: "1.2.0", capabilities: ["login", "update", "repair"] });
       return;
     }
     if (url.startsWith("/wp-json/wp/v2/plugins") || url.startsWith("/wp-json/wp/v2/themes")) {
@@ -162,8 +162,8 @@ test("runScan records the helper plugin when wwatch/v1 answers", async () => {
   server.close();
   assert.deepEqual(snapshot.helper, {
     kind: "installed",
-    version: "1.1.0",
-    capabilities: ["login", "update"],
+    version: "1.2.0",
+    capabilities: ["login", "update", "repair"],
   });
 });
 

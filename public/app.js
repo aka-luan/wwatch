@@ -209,7 +209,7 @@ function renderDrawer(row) {
     <h3>Findings</h3>
     ${
       findings.length
-        ? findings.map((finding) => findingHtml(finding, canUpdate)).join("")
+        ? findings.map((finding) => findingHtml(finding, helper)).join("")
         : "<p class='help'>No findings on the last scan.</p>"
     }
     <h3>Previous scans</h3>
@@ -291,6 +291,22 @@ function renderDrawer(row) {
       applyUpdate(row, body);
     });
   }
+  for (const button of drawer.querySelectorAll("[data-repair]")) {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.repair;
+      const path = button.dataset.path;
+      const title = button.dataset.name ?? path ?? kind;
+      const body = kind === "xmlrpc" ? { kind: "xmlrpc" } : { kind: "exposed_path", path };
+      const prompt =
+        kind === "xmlrpc"
+          ? `Disable XML-RPC on ${row.site.name}? This does not delete xmlrpc.php.`
+          : `Delete ${title} on ${row.site.name}?`;
+      if (!confirm(prompt)) {
+        return;
+      }
+      applyRepair(row, body);
+    });
+  }
 }
 
 function scanHtml(scan) {
@@ -302,8 +318,8 @@ function scanHtml(scan) {
     </div>`;
 }
 
-function findingHtml(finding, canUpdate) {
-  const action = updateAction(finding, canUpdate);
+function findingHtml(finding, helper) {
+  const action = updateAction(finding, helperCan(helper, "update")) || repairAction(finding, helperCan(helper, "repair"));
   return `
     <div class="finding${action ? " has-action" : ""}">
       <div>
@@ -329,6 +345,33 @@ function updateAction(finding, canUpdate) {
     return `<button type="button" data-update="core" data-name="${escape(finding.title)}">Update</button>`;
   }
   return "";
+}
+
+function repairAction(finding, canRepair) {
+  if (!canRepair) {
+    return "";
+  }
+  if (finding.kind === "xmlrpc_open") {
+    return `<button type="button" data-repair="xmlrpc" data-name="XML-RPC">Fix</button>`;
+  }
+  if (finding.kind === "exposed_path" && isRepairablePath(finding.path)) {
+    return `<button type="button" data-repair="exposed_path" data-path="${escape(finding.path)}" data-name="${escape(finding.path)}">Fix</button>`;
+  }
+  return "";
+}
+
+const REPAIRABLE_PATHS = [
+  "/debug.log",
+  "/wp-content/debug.log",
+  "/readme.html",
+  "/license.txt",
+  "/wp-config.php.bak",
+  "/wp-config.php.save",
+  "/wp-config.php.old",
+];
+
+function isRepairablePath(path) {
+  return REPAIRABLE_PATHS.includes(path);
 }
 
 function pluginHtml(plugin, findings, canUpdate) {
@@ -452,18 +495,36 @@ async function applyUpdate(row, body) {
   }
 }
 
+async function applyRepair(row, body) {
+  loginError = "";
+  try {
+    await api(`/api/sites/${row.site.id}/repair`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await refresh();
+  } catch (error) {
+    loginError = error instanceof Error ? error.message : "Could not repair";
+    await showSite(row.site.id);
+  }
+}
+
 function helperCan(helper, capability) {
   return Boolean(helper && helper.kind === "installed" && helper.capabilities?.includes(capability));
 }
 
 function helperHelp(helper) {
   if (!helper || helper.kind === "missing") {
-    return `Install the <a href="/api/helper-plugin">wwatch plugin</a> to log in or update from the board.`;
+    return `Install the <a href="/api/helper-plugin">wwatch plugin</a> to log in, update, or fix findings from the board.`;
   }
   if (!helperCan(helper, "update")) {
-    return `This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update from the board.`;
+    return `This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update or fix findings from the board.`;
   }
-  return `Log in opens wp-admin. Update uses the wwatch plugin on this site.`;
+  if (!helperCan(helper, "repair")) {
+    return `This plugin can log in and update. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to fix exposed files from the board.`;
+  }
+  return `Log in opens wp-admin. Update and Fix use the wwatch plugin on this site.`;
 }
 
 async function wpLogin(row) {
