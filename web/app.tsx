@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { siteStatusOf } from "@/lib/status";
+import { siteBoard } from "@/lib/site-board";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
 export function App() {
@@ -162,10 +162,7 @@ function Board() {
 }
 
 function Stats({ sites, loaded }: { sites: OverviewRow[]; loaded: boolean }) {
-  const problems = sites.filter((row) => {
-    const status = siteStatusOf(row);
-    return status === "critical" || status === "attention";
-  }).length;
+  const problems = siteBoard(sites).needsAttention.length;
   const scanning = sites.filter((row) => row.running).length;
   if (!loaded) {
     return (
