@@ -1,4 +1,4 @@
-import { ChevronRightIcon } from "lucide-react";
+import { ChevronRightIcon, Loader2Icon } from "lucide-react";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import { Separator } from "@/components/ui/separator";
@@ -61,11 +61,9 @@ function SiteRow({ row, onOpen }: { row: OverviewRow; onOpen: (id: string) => vo
       type="button"
       aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${copy.finding ?? copy.meta}`}
       className={cn(
-        "flex w-full items-start gap-3 rounded-md border-0 bg-transparent px-2 py-3 text-left text-foreground",
-        "cursor-pointer appearance-none transition-colors",
-        "hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-        overview.status === "critical" && "bg-destructive/[0.07] hover:bg-destructive/10 focus-visible:bg-destructive/10",
-        overview.status === "attention" && "bg-warning/[0.07] hover:bg-warning/10 focus-visible:bg-warning/10",
+        "group flex w-full items-start gap-3 rounded-md border-0 bg-transparent px-2 py-3 text-left text-foreground",
+        "cursor-pointer appearance-none transition-colors duration-150",
+        "hover:bg-muted/50 active:bg-muted/70 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
       )}
       onClick={() => onOpen(row.site.id)}
     >
@@ -80,13 +78,21 @@ function SiteRow({ row, onOpen }: { row: OverviewRow; onOpen: (id: string) => vo
           >
             {row.site.name}
           </span>
-          <StatusBadge status={overview.status} className="shrink-0" />
+          <StatusBadge status={overview.status} dot={false} className="shrink-0" />
         </span>
         <span className="mono host mt-0.5 block text-[13px]">{host(row.site.origin)}</span>
         {copy.finding ? <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span> : null}
-        {copy.meta ? <span className="mt-1 block text-[13px] leading-5 text-muted-foreground">{copy.meta}</span> : null}
+        {copy.meta ? (
+          <span className="mt-1 flex items-center gap-1.5 text-[13px] leading-5 text-muted-foreground">
+            {overview.running ? <Loader2Icon className="size-3.5 shrink-0 animate-spin" aria-hidden /> : null}
+            <span>{copy.meta}</span>
+          </span>
+        ) : null}
       </span>
-      <ChevronRightIcon className="mt-1 size-4 shrink-0 text-muted-foreground" aria-hidden />
+      <ChevronRightIcon
+        className="mt-1 size-4 shrink-0 text-muted-foreground transition-colors duration-150 group-hover:text-foreground"
+        aria-hidden
+      />
     </button>
   );
 }

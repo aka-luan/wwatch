@@ -128,5 +128,5 @@ The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live i
 - `FindingRow` for operational finding lines
 - Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`)
 
-Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin or remove-site actions with `AlertDialog`. Prefer `Sheet` for future site-detail work; the current drawer is unchanged. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.
+Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin or remove-site actions with `AlertDialog`. Site details open in a `Sheet`. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.
 
