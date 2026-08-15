@@ -186,6 +186,7 @@ test("API responses include security headers", async () => {
   assert.equal(response.headers.get("x-frame-options"), "DENY");
   assert.equal(response.headers.get("referrer-policy"), "no-referrer");
   assert.match(response.headers.get("content-security-policy") ?? "", /frame-ancestors 'none'/);
+  assert.match(response.headers.get("content-security-policy") ?? "", /style-src-attr 'unsafe-inline'/);
   assert.equal(response.headers.get("cache-control"), "no-store");
   await store.close();
 });
