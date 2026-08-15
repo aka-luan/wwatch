@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
@@ -6,6 +6,7 @@ import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
 import { SiteSheet } from "@/components/site-sheet";
+import { UpdatesEntry, UpdatesReviewDialog } from "@/components/updates-review";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -19,6 +20,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
+import { fleetUpdateSummary } from "@/lib/fleet-updates";
 import {
   emptyFilterState,
   filterSites,
@@ -43,6 +45,7 @@ function Board() {
   const [page, setPage] = useState<SitePage | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
+  const [updatesOpen, setUpdatesOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
   const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
 
@@ -75,6 +78,7 @@ function Board() {
   const filteredSites = filterSites(sites, filters);
   const filtering = filtersActive(filters);
   const scanning = sites.filter((row) => row.running).length;
+  const updates = useMemo(() => fleetUpdateSummary(sites), [sites]);
 
   return (
     <>
@@ -126,18 +130,21 @@ function Board() {
         sites.length > 0 ? (
           <div className="board-toolbar">
             <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-            {scanning > 0 ? (
-              <p className="scanning-note">
-                <ProcessingIndicator
-                  label={
-                    <>
-                      <b className="font-semibold text-foreground">{scanning}</b> scanning
-                    </>
-                  }
-                  size={12}
-                />
-              </p>
-            ) : null}
+            <div className="board-toolbar-meta">
+              <UpdatesEntry summary={updates} onReview={() => setUpdatesOpen(true)} />
+              {scanning > 0 ? (
+                <p className="scanning-note">
+                  <ProcessingIndicator
+                    label={
+                      <>
+                        <b className="font-semibold text-foreground">{scanning}</b> scanning
+                      </>
+                    }
+                    size={12}
+                  />
+                </p>
+              ) : null}
+            </div>
           </div>
         ) : null
       ) : (
@@ -183,6 +190,12 @@ function Board() {
           }
         }}
         onEdit={() => setEditOpen(true)}
+        onChanged={refresh}
+      />
+      <UpdatesReviewDialog
+        open={updatesOpen}
+        onOpenChange={setUpdatesOpen}
+        sites={sites}
         onChanged={refresh}
       />
       <AddSiteDialog
