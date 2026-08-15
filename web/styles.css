@@ -186,6 +186,13 @@ body.modal-open {
   display: none;
 }
 
+.board-toolbar-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 16px;
+}
+
 .scanning-note {
   margin: 0;
   color: var(--muted-foreground);
@@ -195,6 +202,47 @@ body.modal-open {
 .scanning-note b {
   color: var(--foreground);
   font-weight: 600;
+}
+
+.updates-entry {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 12px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--muted-foreground);
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.4;
+  text-align: left;
+  cursor: pointer;
+}
+
+.updates-entry b {
+  color: var(--foreground);
+  font-weight: 600;
+}
+
+.updates-entry-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  color: var(--foreground);
+  font-weight: 500;
+}
+
+.updates-entry:hover .updates-entry-action {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.updates-entry:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 3px;
+  border-radius: 4px;
 }
 
 .wwatch-spinner {
