@@ -180,6 +180,11 @@ function cardHtml(row) {
 function renderDrawer(row) {
   const findings = row.latest?.findings ?? [];
   const plugins = row.latest?.plugins ?? [];
+  const helper = row.latest?.helper ?? null;
+  const canUpdate = helperCan(helper, "update");
+  const updateFindings = findings.filter(
+    (finding) => finding.kind === "plugin_update" || finding.kind === "theme_update",
+  );
   const previous = (row.history ?? []).filter((scan) => scan.id !== row.latest?.id);
   document.body.classList.add("drawer-open");
   drawer.hidden = false;
@@ -192,18 +197,19 @@ function renderDrawer(row) {
       </div>
       <div class="actions">
         <button type="button" id="wp-login">Log in</button>
+        ${canUpdate && updateFindings.length ? `<button type="button" id="update-all">Update all</button>` : ""}
         <button type="button" id="scan-one">Scan</button>
         <button type="button" id="edit-site">Edit</button>
         <button type="button" id="close-drawer">Close</button>
       </div>
     </header>
     <p>${pill(row.rollup)} ${row.latest?.coreVersion ? ` · WP ${escape(row.latest.coreVersion)}` : ""}</p>
-    <p class="help">Log in opens wp-admin as the stored user. The site needs the <a href="/api/helper-plugin">wwatch plugin</a>.</p>
+    <p class="help">${helperHelp(helper)}</p>
     ${loginError ? `<p class="error">${escape(loginError)}</p>` : ""}
     <h3>Findings</h3>
     ${
       findings.length
-        ? findings.map(findingHtml).join("")
+        ? findings.map((finding) => findingHtml(finding, canUpdate)).join("")
         : "<p class='help'>No findings on the last scan.</p>"
     }
     <h3>Previous scans</h3>
@@ -215,7 +221,7 @@ function renderDrawer(row) {
     <h3>Plugins</h3>
     ${
       plugins.length
-        ? plugins.map((plugin) => pluginHtml(plugin, findings)).join("")
+        ? plugins.map((plugin) => pluginHtml(plugin, findings, canUpdate)).join("")
         : "<p class='help'>No plugin list yet. Scan with a working Application Password.</p>"
     }
     <div class="row-actions">
@@ -224,6 +230,15 @@ function renderDrawer(row) {
   drawer.querySelector("#close-drawer").addEventListener("click", closeDrawer);
   drawer.querySelector("#edit-site").addEventListener("click", () => showEdit(row));
   drawer.querySelector("#wp-login").addEventListener("click", () => wpLogin(row));
+  const updateAll = drawer.querySelector("#update-all");
+  if (updateAll) {
+    updateAll.addEventListener("click", () => {
+      if (!confirm("Update every plugin and theme that has a wordpress.org update? Core is not included.")) {
+        return;
+      }
+      applyUpdate(row, { kind: "all" });
+    });
+  }
   drawer.querySelector("#scan-one").addEventListener("click", async () => {
     await api(`/api/sites/${row.site.id}/scan`, { method: "POST" });
     await refresh();
@@ -237,7 +252,7 @@ function renderDrawer(row) {
     closeDrawer();
     await refresh();
   });
-  for (const button of drawer.querySelectorAll("[data-plugin]")) {
+  for (const button of drawer.querySelectorAll("[data-status]")) {
     button.addEventListener("click", async () => {
       const name = button.dataset.name ?? button.dataset.plugin;
       const status = button.dataset.status;
@@ -256,6 +271,26 @@ function renderDrawer(row) {
       await refresh();
     });
   }
+  for (const button of drawer.querySelectorAll("[data-update]")) {
+    button.addEventListener("click", () => {
+      const kind = button.dataset.update;
+      const name = button.dataset.name ?? kind;
+      const body =
+        kind === "plugin"
+          ? { kind: "plugin", plugin: button.dataset.plugin }
+          : kind === "theme"
+            ? { kind: "theme", theme: button.dataset.theme }
+            : { kind: "core" };
+      const prompt =
+        kind === "core"
+          ? `Update WordPress to a new version on ${row.site.name}? Back up first if you have not.`
+          : `Update ${name} on ${row.site.name}?`;
+      if (!confirm(prompt)) {
+        return;
+      }
+      applyUpdate(row, body);
+    });
+  }
 }
 
 function scanHtml(scan) {
@@ -267,16 +302,36 @@ function scanHtml(scan) {
     </div>`;
 }
 
-function findingHtml(finding) {
+function findingHtml(finding, canUpdate) {
+  const action = updateAction(finding, canUpdate);
   return `
-    <div class="finding">
-      ${pill(finding.severity)}
-      <strong>${escape(finding.title)}</strong>
-      <p>${escape(finding.detail)}</p>
+    <div class="finding${action ? " has-action" : ""}">
+      <div>
+        ${pill(finding.severity)}
+        <strong>${escape(finding.title)}</strong>
+        <p>${escape(finding.detail)}</p>
+      </div>
+      ${action ?? ""}
     </div>`;
 }
 
-function pluginHtml(plugin, findings) {
+function updateAction(finding, canUpdate) {
+  if (!canUpdate) {
+    return "";
+  }
+  if (finding.kind === "plugin_update") {
+    return `<button type="button" data-update="plugin" data-plugin="${escape(finding.plugin)}" data-name="${escape(finding.title)}">Update</button>`;
+  }
+  if (finding.kind === "theme_update") {
+    return `<button type="button" data-update="theme" data-theme="${escape(finding.theme)}" data-name="${escape(finding.title)}">Update</button>`;
+  }
+  if (finding.kind === "core_update") {
+    return `<button type="button" data-update="core" data-name="${escape(finding.title)}">Update</button>`;
+  }
+  return "";
+}
+
+function pluginHtml(plugin, findings, canUpdate) {
   const update = findings.find((f) => f.kind === "plugin_update" && f.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
   return `
@@ -287,9 +342,16 @@ function pluginHtml(plugin, findings) {
         ${update ? pill("warn") + " " + escape(plugin.version + " → " + update.latest) : `<span class="mono"> ${escape(plugin.version)}</span>`}
         <p class="mono">${escape(plugin.ref)}</p>
       </div>
-      <button type="button" data-plugin="${escape(plugin.ref)}" data-name="${escape(plugin.name)}" data-status="${next}">
-        Set ${next}
-      </button>
+      <div class="plugin-actions">
+        ${
+          canUpdate && update
+            ? `<button type="button" data-update="plugin" data-plugin="${escape(plugin.ref)}" data-name="${escape(plugin.name)}">Update</button>`
+            : ""
+        }
+        <button type="button" data-plugin="${escape(plugin.ref)}" data-name="${escape(plugin.name)}" data-status="${next}">
+          Set ${next}
+        </button>
+      </div>
     </div>`;
 }
 
@@ -373,6 +435,35 @@ function showEdit(row) {
       err.textContent = error instanceof Error ? error.message : "Could not update";
     }
   });
+}
+
+async function applyUpdate(row, body) {
+  loginError = "";
+  try {
+    await api(`/api/sites/${row.site.id}/update`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    await refresh();
+  } catch (error) {
+    loginError = error instanceof Error ? error.message : "Could not update";
+    await showSite(row.site.id);
+  }
+}
+
+function helperCan(helper, capability) {
+  return Boolean(helper && helper.kind === "installed" && helper.capabilities?.includes(capability));
+}
+
+function helperHelp(helper) {
+  if (!helper || helper.kind === "missing") {
+    return `Install the <a href="/api/helper-plugin">wwatch plugin</a> to log in or update from the board.`;
+  }
+  if (!helperCan(helper, "update")) {
+    return `This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update from the board.`;
+  }
+  return `Log in opens wp-admin. Update uses the wwatch plugin on this site.`;
 }
 
 async function wpLogin(row) {

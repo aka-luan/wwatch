@@ -332,6 +332,7 @@ test("sitePage lists earlier scans newest first", async () => {
     coreVersion: null,
     plugins: [],
     findings: [{ kind: "down", severity: "crit", title: "down", detail: "" }],
+    helper: null,
   });
   await store.insertScan({
     id: asScanId("c2"),
@@ -342,6 +343,7 @@ test("sitePage lists earlier scans newest first", async () => {
     coreVersion: "6.7.1",
     plugins: [],
     findings: [],
+    helper: { kind: "installed", version: "1.1.0", capabilities: ["login", "update"] },
   });
   const page = await fleet.sitePage(site.id);
   assert.equal(page.latest?.id, "c2");

@@ -2,7 +2,7 @@
 
 A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests.
 
-Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login from the board needs the optional `plugin/wwatch.php` helper, which also leaves a REST namespace (`wwatch/v1`) for later board actions core REST cannot do.
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login and one-click plugin, theme, and core updates need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the drawer. Core is a separate button.
 
 ## Run locally
 
@@ -58,15 +58,17 @@ If connect says WordPress did not see the password, the host or CDN dropped the 
 
 wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the drawer and click **Edit**. The origin cannot change; scan history stays.
 
-### Log in to wp-admin
+### Log in and update from the board
 
-Application Passwords cannot create a wp-admin cookie. To open the selected site already logged in:
+Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does both:
 
 1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo).
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
-3. On the board, open the site and click **Log in**.
+3. Scan the site. The drawer then shows **Log in**, **Update** on each plugin/theme/core finding, and **Update all** for plugins and themes.
 
-The plugin mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. If the plugin is missing, the board says so instead of opening a dead tab.
+Log in mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. Updates call `POST /wp-json/wwatch/v1/update` as that same user, then the board scans again. If the plugin is missing or old, the board says so instead of opening a dead tab or pretending core REST can upgrade.
+
+Sites with `DISALLOW_FILE_MODS` cannot update from the board. The helper will say so.
 
 ## What a scan checks
 
@@ -88,7 +90,7 @@ A new down, auth failure, or public `wp-config` backup, `debug.log`, or `.git` s
 - Telegram: `TELEGRAM_BOT_TOKEN` and `TELEGRAM_CHAT_ID`
 - Email: `RESEND_API_KEY` and `ALERT_EMAIL`. Optional `ALERT_FROM`. The default sender is Resend's `beth.t@example.com`, which only delivers to the address on that Resend account.
 
-Core REST cannot upgrade a plugin to a new version. The board can activate or deactivate a plugin. It will not pretend it can one-click update.
+Core REST still cannot upgrade a plugin. Activate and deactivate stay on `/wp/v2/plugins`. Updates go through the helper.
 
 ## Checks
 

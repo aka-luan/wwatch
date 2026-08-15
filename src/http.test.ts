@@ -307,6 +307,71 @@ test("POST /api/sites/:id/wp-login says to install the plugin when the route is 
   await store.close();
 });
 
+test("POST /api/sites/:id/update runs the helper then starts a scan", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const updates: string[] = [];
+  const fleet = new Fleet(store, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input, init) => {
+      const url = String(input);
+      if (url.endsWith("/wp-json")) {
+        return new Response(JSON.stringify({ namespaces: ["wp/v2", "wwatch/v1"] }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1/update")) {
+        updates.push(String(init?.body ?? ""));
+        return new Response(JSON.stringify({ ok: true, detail: "Updated akismet/akismet.php." }), { status: 200 });
+      }
+      if (url.endsWith("/wp-json/wwatch/v1")) {
+        return new Response(JSON.stringify({ version: "1.1.0", capabilities: ["login", "update"] }), {
+          status: 200,
+        });
+      }
+      return new Response("[]", { status: 200 });
+    },
+  });
+  const site = await fleet.connect({
+    name: "Bakery",
+    origin: "https://bakery.example",
+    username: "luan",
+    applicationPassword: "aaaa",
+  });
+  const app = createApp(fleet);
+  const badKind = await app.request(`/api/sites/${site.id}/update`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "plugins" }),
+  });
+  assert.equal(badKind.status, 400);
+
+  const updated = await app.request(`/api/sites/${site.id}/update`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "plugin", plugin: "akismet/akismet.php" }),
+  });
+  assert.equal(updated.status, 200);
+  assert.match(((await updated.json()) as { detail: string }).detail, /akismet/);
+  assert.match(updates[0] ?? "", /"kind":"plugin"/);
+
+  const missing = await app.request("/api/sites/nope/update", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ kind: "core" }),
+  });
+  assert.equal(missing.status, 404);
+  for (let i = 0; i < 50; i += 1) {
+    const row = (await fleet.overview())[0];
+    if (row && !row.running && row.latest) {
+      await store.close();
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  await store.close();
+  throw new Error("scan did not finish");
+});
+
 async function loginCookie(app: ReturnType<typeof createApp>, password: string): Promise<string> {
   const response = await app.request("/api/login", {
     method: "POST",
