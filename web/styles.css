@@ -182,97 +182,12 @@ body.modal-open {
   font-weight: 600;
 }
 
-.board-wrap {
-  margin: 16px max(var(--gutter), env(safe-area-inset-right)) 48px max(var(--gutter), env(safe-area-inset-left));
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+.site-list {
+  margin: 8px max(var(--gutter), env(safe-area-inset-right)) 48px max(var(--gutter), env(safe-area-inset-left));
 }
 
-table {
-  width: 100%;
-  min-width: 720px;
-  border-collapse: collapse;
-}
-
-th {
-  text-align: left;
-  color: var(--muted-foreground);
-  font-weight: 500;
-  font-size: 12px;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 8px 10px;
-  border-bottom: 1px solid var(--border);
-}
-
-td {
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--border);
-  vertical-align: top;
-}
-
-tr.row {
-  cursor: pointer;
-}
-
-@media (hover: hover) {
-  tr.row:hover td {
-    background: #12171c;
-  }
-}
-
-.board-cards {
-  display: none;
-}
-
-.site-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  background: var(--card);
-  color: var(--foreground);
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  padding: 14px;
-  cursor: pointer;
-  appearance: none;
-  -webkit-appearance: none;
+.site-list button {
   -webkit-tap-highlight-color: transparent;
-}
-
-.site-card:active {
-  border-color: #4a545e;
-}
-
-.site-card-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: start;
-  gap: 12px;
-}
-
-.site-card-name {
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-
-.site-card-pills {
-  flex-shrink: 0;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 4px;
-}
-
-.site-card-meta {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px 12px;
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px solid var(--border);
-  color: var(--muted-foreground);
-  font-size: 13px;
 }
 
 .empty {
@@ -468,18 +383,8 @@ a {
     padding-top: 12px;
   }
 
-  .board-wrap {
-    display: none;
-  }
-
-  .board-cards {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    padding: 12px var(--gutter) 32px;
-    padding-left: max(var(--gutter), env(safe-area-inset-left));
-    padding-right: max(var(--gutter), env(safe-area-inset-right));
-    padding-bottom: max(32px, env(safe-area-inset-bottom));
+  .site-list {
+    margin-bottom: max(32px, env(safe-area-inset-bottom));
   }
 
   .empty {

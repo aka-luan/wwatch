@@ -46,6 +46,26 @@ export function siteStatusFromSeverity(severity: string): SiteStatus {
   }
 }
 
+export function siteStatusFromFindings(findings: readonly { severity: string }[]): SiteStatus {
+  let attention = false;
+  for (const finding of findings) {
+    if (finding.severity === "crit") {
+      return "critical";
+    }
+    if (finding.severity === "warn") {
+      attention = true;
+    }
+  }
+  return attention ? "attention" : "healthy";
+}
+
+export function siteStatusOf(row: { latest: { findings: readonly { severity: string }[] } | null }): SiteStatus {
+  if (!row.latest) {
+    return "unknown";
+  }
+  return siteStatusFromFindings(row.latest.findings);
+}
+
 export function rollupLabel(value: string): string {
   return value.replaceAll("_", " ");
 }

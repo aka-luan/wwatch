@@ -4,8 +4,10 @@ import {
   SITE_STATUSES,
   SITE_STATUS_LABEL,
   rollupLabel,
+  siteStatusFromFindings,
   siteStatusFromRollup,
   siteStatusFromSeverity,
+  siteStatusOf,
 } from "./status.ts";
 
 test("site statuses cover the four product states", () => {
@@ -36,4 +38,17 @@ test("finding severity maps onto semantic site statuses", () => {
 test("rollup labels stay readable without relying on color", () => {
   assert.equal(rollupLabel("auth_failed"), "auth failed");
   assert.equal(rollupLabel("ok"), "ok");
+});
+
+test("findings derive critical vs attention instead of collapsing both into degraded", () => {
+  assert.equal(siteStatusFromFindings([]), "healthy");
+  assert.equal(siteStatusFromFindings([{ severity: "info" }]), "healthy");
+  assert.equal(siteStatusFromFindings([{ severity: "warn" }]), "attention");
+  assert.equal(siteStatusFromFindings([{ severity: "warn" }, { severity: "crit" }]), "critical");
+});
+
+test("site status comes from the latest completed scan, not a running job", () => {
+  assert.equal(siteStatusOf({ latest: null }), "unknown");
+  assert.equal(siteStatusOf({ latest: { findings: [] } }), "healthy");
+  assert.equal(siteStatusOf({ latest: { findings: [{ severity: "crit" }] } }), "critical");
 });
