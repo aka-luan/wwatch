@@ -1,8 +1,8 @@
 # wwatch
 
-A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests.
+A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests. With helper 1.3.0 it also shows PHP, constants, checksums, must-use plugins, cron, autoload size, and admin-user facts that core REST cannot see.
 
-Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the drawer. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0).
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the drawer. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0). Health findings appear when `GET /wp-json/wwatch/v1/health` answers (v1.3.0). An older helper that 404s that route still scans; you just do not get those extra findings.
 
 ## Run locally
 
@@ -62,7 +62,7 @@ wwatch starts a scan as soon as the site is added. To rename a site or rotate th
 
 Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does those jobs, and it can delete a short allowlist of public files:
 
-1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo). Replace 1.1.0 if that is already installed. Current helper is 1.2.0.
+1. Download `wwatch.php` from the site drawer (or copy `plugin/wwatch.php` from this repo). Replace 1.2.0 if that is already installed. Current helper is 1.3.0.
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
 3. Scan the site. The drawer then shows **Log in**, **Update** on each plugin/theme/core finding, **Update all** for plugins and themes, and **Fix** on findings the helper can actually repair.
 
@@ -82,6 +82,21 @@ Sites with `DISALLOW_FILE_MODS` cannot update from the board. The helper will sa
 - A short list of exposed paths (`debug.log`, backup `wp-config` names, `.git/HEAD`, `readme.html`)
 - Whether `xmlrpc.php` accepts a method call
 - TLS days left, on HTTPS origins
+- With helper 1.3.0, `GET /wp-json/wwatch/v1/health` (read-only, `manage_options`). A 404 is an old helper and is ignored.
+
+The extra helper findings are facts core REST cannot see:
+
+- PHP below what the installed core requires, or `memory_limit` under 64M
+- `WP_DEBUG` on an https origin
+- `DISALLOW_FILE_EDIT` off (the wp-admin file editor is available)
+- `DISALLOW_FILE_MODS` or `AUTOMATIC_UPDATER_DISABLED`, which is why Update from the board can fail
+- Core file checksums vs `api.wordpress.org/core/checksums` (matched / mismatched / skipped counts, not a file dump)
+- Must-use plugins and drop-ins
+- Missed cron events, and `DISABLE_WP_CRON`
+- Autoloaded options above about 1 MB
+- Administrator count, a user named `admin`, and whether user ID 1 is still there
+
+These can warn or crit the rollup like any other finding. They do not send Telegram or email.
 
 A scan is a snapshot. The site row shows the latest finished snapshot. The drawer lists earlier scans (rollup, time, finding counts). A running scan does not rewrite that row until it finishes.
 

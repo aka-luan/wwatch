@@ -44,7 +44,26 @@ async function handleWp(req: IncomingMessage, res: ServerResponse): Promise<void
   }
   if (url === "/wp-json/wwatch/v1" || url === "/wp-json/wwatch/v1/") {
     res.setHeader("content-type", "application/json");
-    res.end(JSON.stringify({ version: "1.2.0", capabilities: ["login", "update", "repair"] }));
+    res.end(JSON.stringify({ version: "1.3.0", capabilities: ["login", "update", "repair"] }));
+    return;
+  }
+  if (url === "/wp-json/wwatch/v1/health" || url === "/wp-json/wwatch/v1/health/") {
+    res.setHeader("content-type", "application/json");
+    res.end(
+      JSON.stringify({
+        php: { version: "7.0.33", required: "7.2.24", memory_limit: "32M", memory_bytes: 33554432 },
+        wp_debug: true,
+        disallow_file_edit: false,
+        disallow_file_mods: false,
+        automatic_updater_disabled: false,
+        checksums: { matched: 80, mismatched: 2, skipped: 5 },
+        mu_plugins: ["sunrise.php"],
+        dropins: ["object-cache.php"],
+        cron: { disabled: false, missed: 1 },
+        autoload_bytes: 2 * 1024 * 1024,
+        users: { administrators: 2, login_admin: true, id_1: true },
+      }),
+    );
     return;
   }
   if (url.startsWith("/wp-json/wwatch/v1/update")) {
@@ -170,6 +189,13 @@ assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "core_up
 assert.equal(page.latest.helper?.kind, "installed");
 assert.ok(page.latest.helper?.capabilities?.includes("update"));
 assert.ok(page.latest.helper?.capabilities?.includes("repair"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "php_runtime"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "file_edit_allowed"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "core_checksums"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "hidden_code"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "cron"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "autoload_size"));
+assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "admin_users"));
 assert.ok(page.latest.findings.some((f: { kind: string }) => f.kind === "xmlrpc_open"));
 assert.ok(page.latest.findings.some((f: { kind: string; path?: string }) => f.kind === "exposed_path" && f.path === "/debug.log"));
 

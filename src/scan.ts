@@ -13,7 +13,7 @@ import {
   type ScanSnapshot,
   type SiteId,
 } from "./domain.js";
-import { probeHelper } from "./helper.js";
+import { fetchHelperHealth, findingsFromHealth, probeHelper } from "./helper.js";
 import type { StoredSite } from "./store.js";
 
 const TIMEOUT_MS = 10_000;
@@ -131,6 +131,12 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
   } else if (auth.kind === "http" && auth.status === 200) {
     plugins = parsePlugins(auth.body);
     helper = await probeHelper(site, deps);
+    if (helper?.kind === "installed") {
+      const health = await fetchHelperHealth(site, deps);
+      if (health) {
+        findings.push(...findingsFromHealth(health, { httpsOrigin: site.origin.startsWith("https:") }));
+      }
+    }
     const org = await Promise.all(plugins.map((plugin) => orgPlugin(deps, plugin.slug)));
     for (const plugin of plugins) {
       const info = org.find((item) => item.slug === plugin.slug);
