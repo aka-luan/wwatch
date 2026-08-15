@@ -2,6 +2,7 @@ import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { asSiteId } from "./domain.js";
 import { Fleet } from "./fleet.js";
+import { helperPluginFile } from "./helper.js";
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 const SESSION_PURPOSE = "wwatch-session-v1";
@@ -139,6 +140,26 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
     const rows = await fleet.overview();
     const started = await Promise.all(rows.map((row) => fleet.startScan(row.site.id, deferFrom(c))));
     return c.json({ started: started.length });
+  });
+
+  app.post("/api/sites/:id/wp-login", async (c) => {
+    try {
+      return c.json(await fleet.wpLogin(asSiteId(c.req.param("id"))));
+    } catch (error) {
+      const text = message(error);
+      return c.json({ error: text }, text === "Unknown site" ? 404 : 400);
+    }
+  });
+
+  app.get("/api/helper-plugin", (c) => {
+    try {
+      const file = helperPluginFile();
+      c.header("content-type", "application/octet-stream");
+      c.header("content-disposition", `attachment; filename="${file.filename}"`);
+      return c.body(file.body);
+    } catch (error) {
+      return c.json({ error: message(error) }, 500);
+    }
   });
 
   app.post("/api/sites/:id/plugins", async (c) => {

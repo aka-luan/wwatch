@@ -18,6 +18,7 @@ import {
   type UpdateInput,
 } from "./domain.js";
 import { sendAlerts, type AlertConfig } from "./alert.js";
+import { mintLoginLink } from "./helper.js";
 import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
 import { Store, type StoredSite } from "./store.js";
 
@@ -136,6 +137,14 @@ export class Fleet {
       throw new Error("Unknown site");
     }
     return setPluginStatus(site, parsePluginRef(input.plugin), input.status, this.#deps);
+  }
+
+  async wpLogin(id: SiteId): Promise<{ url: string }> {
+    const site = await this.#store.getSite(id);
+    if (!site) {
+      throw new Error("Unknown site");
+    }
+    return mintLoginLink(site, this.#deps);
   }
 
   async #run(site: StoredSite): Promise<void> {
