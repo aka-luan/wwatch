@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Loader2Icon, ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
+import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
 import { SiteSheet } from "@/components/site-sheet";
 import { Button } from "@/components/ui/button";
@@ -16,7 +17,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { api } from "@/lib/api";
-import { siteBoard } from "@/lib/site-board";
+import {
+  emptyFilterState,
+  filterSites,
+  filtersActive,
+  type SiteFilterState,
+} from "@/lib/site-filters";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
 export function App() {
@@ -35,6 +41,7 @@ function Board() {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
+  const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
 
   async function refresh() {
     const rows = await api<OverviewRow[]>("/api/sites");
@@ -62,6 +69,9 @@ function Board() {
   }, [selected]);
 
   const selectedPage = page && selected && page.site.id === selected ? page : null;
+  const filteredSites = filterSites(sites, filters);
+  const filtering = filtersActive(filters);
+  const scanning = sites.filter((row) => row.running).length;
 
   return (
     <>
@@ -113,10 +123,35 @@ function Board() {
           </Button>
         </div>
       </header>
-      <Stats sites={sites} loaded={loaded} />
+      {loaded ? (
+        <div className="board-toolbar">
+          <SiteFilters sites={sites} state={filters} onChange={setFilters} />
+          {scanning > 0 ? (
+            <p className="scanning-note">
+              <b>{scanning}</b> scanning
+            </p>
+          ) : null}
+        </div>
+      ) : (
+        <div className="board-toolbar">
+          <div className="flex flex-wrap gap-2">
+            <Skeleton className="h-8 min-w-[12rem] flex-1" />
+            <Skeleton className="h-8 w-24" />
+          </div>
+          <div className="flex gap-1 py-0.5">
+            <Skeleton className="h-7 w-16" />
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-7 w-24" />
+            <Skeleton className="h-7 w-20" />
+          </div>
+        </div>
+      )}
       <main>
         <SiteList
-          sites={sites}
+          sites={filteredSites}
+          fleetCount={sites.length}
+          filtersActive={filtering}
+          onClearFilters={() => setFilters(emptyFilterState())}
           loaded={loaded}
           onOpen={(id) => {
             if (id !== selected) {
@@ -158,33 +193,6 @@ function Board() {
         />
       ) : null}
     </>
-  );
-}
-
-function Stats({ sites, loaded }: { sites: OverviewRow[]; loaded: boolean }) {
-  const problems = siteBoard(sites).needsAttention.length;
-  const scanning = sites.filter((row) => row.running).length;
-  if (!loaded) {
-    return (
-      <section className="stats">
-        <Skeleton className="h-4 w-20" />
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-24" />
-      </section>
-    );
-  }
-  return (
-    <section className="stats">
-      <span>
-        <b>{sites.length}</b> sites
-      </span>
-      <span>
-        <b>{problems}</b> need attention
-      </span>
-      <span>
-        <b>{scanning}</b> scanning
-      </span>
-    </section>
   );
 }
 

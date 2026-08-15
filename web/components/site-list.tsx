@@ -13,10 +13,16 @@ import type { OverviewRow } from "@/lib/types";
 
 export function SiteList({
   sites,
+  fleetCount,
+  filtersActive = false,
+  onClearFilters,
   loaded,
   onOpen,
 }: {
   sites: OverviewRow[];
+  fleetCount: number;
+  filtersActive?: boolean;
+  onClearFilters?: () => void;
   loaded: boolean;
   onOpen: (id: string) => void;
 }) {
@@ -31,7 +37,7 @@ export function SiteList({
       </div>
     );
   }
-  if (sites.length === 0) {
+  if (fleetCount === 0) {
     return (
       <div className="empty">
         <h2>No sites yet</h2>
@@ -40,6 +46,20 @@ export function SiteList({
           Users → Profile. Scans install nothing on the site. WP Admin from the site panel needs the
           optional wwatch plugin.
         </p>
+      </div>
+    );
+  }
+  if (sites.length === 0 && filtersActive) {
+    return (
+      <div className="empty empty-compact">
+        <h2>No sites match these filters.</h2>
+        {onClearFilters ? (
+          <p>
+            <button type="button" className="link-button" onClick={onClearFilters}>
+              Clear filters
+            </button>
+          </p>
+        ) : null}
       </div>
     );
   }
