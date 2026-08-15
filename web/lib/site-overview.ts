@@ -18,7 +18,7 @@ export function siteOverview(row: OverviewRow): SiteOverview {
   return {
     status,
     primaryLabel: primaryLabelOf({ status, primary, running: Boolean(row.running) }),
-    emphasizePrimary: status === "critical" || status === "attention",
+    emphasizePrimary: status !== "healthy",
     extra: extraLabelOf(findings, primary),
     finishedAt: row.latest?.finishedAt ?? null,
     running: Boolean(row.running),

@@ -43,7 +43,7 @@ test("unknown when there is no completed scan", () => {
   const overview = siteOverview(row({ latest: null, running: null, rollup: "never" }));
   assert.equal(overview.status, "unknown");
   assert.equal(overview.primaryLabel, "Not scanned yet");
-  assert.equal(overview.emphasizePrimary, false);
+  assert.equal(overview.emphasizePrimary, true);
   assert.equal(overview.finishedAt, null);
 });
 
@@ -157,15 +157,23 @@ test("row copy keeps the primary finding on its own line for sites that need wor
   });
 });
 
-test("row copy folds healthy and unknown copy onto the meta line", () => {
+test("row copy folds healthy copy onto the meta line", () => {
   const healthy = siteOverview(row({ findings: [], rollup: "ok" }));
   assert.deepEqual(siteRowCopy(healthy, () => "7m ago"), {
     finding: null,
     meta: "No action required · scanned 7m ago",
   });
+});
+
+test("row copy keeps unknown reasons on the finding line", () => {
   const unknown = siteOverview(row({ latest: null, running: null, rollup: "never" }));
   assert.deepEqual(siteRowCopy(unknown, () => "7m ago"), {
-    finding: null,
-    meta: "Not scanned yet",
+    finding: "Not scanned yet",
+    meta: "",
+  });
+  const scanning = siteOverview(row({ latest: null, running: { id: "j1", startedAt: "t0" }, rollup: "running" }));
+  assert.deepEqual(siteRowCopy(scanning, () => "7m ago"), {
+    finding: "Scan in progress",
+    meta: "",
   });
 });
