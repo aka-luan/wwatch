@@ -17,8 +17,8 @@ export function FindingRow({ status, title, detail, action, statusLabel }: Findi
   return (
     <div
       className={cn(
-        "group/finding -mx-2 flex items-start gap-3 rounded-md border-t border-border px-2 py-3",
-        "transition-colors hover:bg-muted/40",
+        "group/finding flex items-start gap-3 border-t border-border py-3",
+        "transition-colors hover:bg-muted/30",
       )}
     >
       <div className="min-w-0 flex-1">

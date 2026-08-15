@@ -105,29 +105,28 @@ export function SiteDrawer({
         className="w-full gap-0 overflow-hidden p-0 sm:max-w-[520px]"
       >
         <SheetHeader className="gap-3 border-b bg-popover p-4">
-            <div className="flex flex-wrap items-start justify-between gap-3">
-            <div className="min-w-0">
-              <SheetTitle className="text-lg">{page.site.name}</SheetTitle>
-              <SheetDescription className="mt-1">
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <a
-                        href={page.site.origin}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex max-w-full items-center gap-1 text-muted-foreground hover:text-foreground"
-                      />
-                    }
-                  >
-                    <span className="truncate [overflow-wrap:anywhere]">{page.site.origin}</span>
-                    <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden />
-                  </TooltipTrigger>
-                  <TooltipContent>Open site</TooltipContent>
-                </Tooltip>
-              </SheetDescription>
-            </div>
-            <div className="actions">
+          <div className="min-w-0">
+            <SheetTitle className="text-lg">{page.site.name}</SheetTitle>
+            <SheetDescription className="mt-1">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <a
+                      href={page.site.origin}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="inline-flex max-w-full items-center gap-1 text-muted-foreground hover:text-foreground"
+                    />
+                  }
+                >
+                  <span className="truncate [overflow-wrap:anywhere]">{page.site.origin}</span>
+                  <ExternalLinkIcon className="size-3.5 shrink-0" aria-hidden />
+                </TooltipTrigger>
+                <TooltipContent>Open site</TooltipContent>
+              </Tooltip>
+            </SheetDescription>
+          </div>
+          <div className="actions w-full justify-start">
               <Button
                 variant="outline"
                 type="button"
@@ -210,7 +209,6 @@ export function SiteDrawer({
                 Close
               </Button>
             </div>
-          </div>
         </SheetHeader>
         <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <p className="mb-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
@@ -511,7 +509,7 @@ function findingAction(
 function ScanHistoryRow({ scan }: { scan: ScanSummary }) {
   const status = siteStatusFromRollup(scan.rollup);
   return (
-    <div className="-mx-2 flex flex-wrap items-baseline gap-x-3 gap-y-1 rounded-md border-t border-border px-2 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/40">
+    <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-t border-border py-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted/30">
       <span className="inline-flex items-center gap-2 text-foreground">
         <StatusDot status={status} decorative />
         <span>{rollupLabel(scan.rollup)}</span>
@@ -540,7 +538,7 @@ function PluginRow({
   const update = findings.find((finding) => finding.kind === "plugin_update" && finding.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
   return (
-    <div className="-mx-2 flex flex-wrap items-start justify-between gap-3 rounded-md border-t border-border px-2 py-3 transition-colors hover:bg-muted/40">
+    <div className="flex flex-wrap items-start justify-between gap-3 border-t border-border py-3 transition-colors hover:bg-muted/30">
       <div className="min-w-0">
         <div className="flex flex-wrap items-center gap-2">
           <strong className="font-medium [overflow-wrap:anywhere]">{plugin.name}</strong>
