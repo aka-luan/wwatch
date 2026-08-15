@@ -10,6 +10,7 @@ const CSP = [
   "default-src 'self'",
   "script-src 'self'",
   "style-src 'self'",
+  "style-src-attr 'unsafe-inline'",
   "img-src 'self'",
   "connect-src 'self'",
   "font-src 'self'",
@@ -55,7 +56,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       "/app.js",
       "/favicon.ico",
     ]);
-    if (open.has(c.req.path)) {
+    if (open.has(c.req.path) || c.req.path.startsWith("/assets/")) {
       await next();
       return;
     }

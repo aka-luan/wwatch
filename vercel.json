@@ -1,4 +1,5 @@
 {
+  "buildCommand": "npm run build",
   "functions": {
     "src/index.ts": {
       "maxDuration": 60,

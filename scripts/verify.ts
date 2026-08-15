@@ -74,7 +74,7 @@ async function handleWp(req: IncomingMessage, res: ServerResponse): Promise<void
   }
   if (url.startsWith("/wp-json/wwatch/v1/repair")) {
     const raw = await readBody(req);
-    let body: { kind?: unknown; path?: unknown } = {};
+    let body: { kind?: unknown; path?: unknown };
     try {
       body = JSON.parse(raw) as { kind?: unknown; path?: unknown };
     } catch {

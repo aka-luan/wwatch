@@ -13,6 +13,8 @@ npm start
 
 Open http://127.0.0.1:8787
 
+`npm start` builds the dashboard into `public/` then serves it. During UI work, `npm run dev` rebuilds the frontend on change and restarts the server.
+
 Data lives in `data/watch.db`. Override the path with `WATCH_DB`.
 
 To require a password for the board itself:
@@ -114,5 +116,17 @@ Core REST still cannot upgrade a plugin. Activate and deactivate stay on `/wp/v2
 ```bash
 npm test
 npm run typecheck
+npm run lint
 npm run verify
 ```
+
+## UI components
+
+The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live in `web/components/ui`. Product pieces on top of those:
+
+- `StatusBadge` / `StatusDot` for site and finding status (`critical`, `attention`, `healthy`, `unknown`)
+- `FindingRow` for operational finding lines
+- Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`)
+
+Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin or remove-site actions with `AlertDialog`. Prefer `Sheet` for future site-detail work; the current drawer is unchanged. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.
+
