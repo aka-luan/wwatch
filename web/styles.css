@@ -197,6 +197,51 @@ body.modal-open {
   font-weight: 600;
 }
 
+.wwatch-spinner {
+  position: relative;
+  display: inline-block;
+  flex-shrink: 0;
+  color: currentColor;
+  vertical-align: middle;
+}
+
+.wwatch-spinner-blade {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 14%;
+  height: 26%;
+  margin-left: -7%;
+  margin-top: -13%;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.18;
+  transform-origin: center center;
+  animation: wwatch-spinner-fade 1.2s linear infinite;
+}
+
+@keyframes wwatch-spinner-fade {
+  0% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.15;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wwatch-spinner-blade {
+    animation: none;
+    opacity: 0.45;
+  }
+
+  .wwatch-spinner-blade:nth-child(1),
+  .wwatch-spinner-blade:nth-child(2),
+  .wwatch-spinner-blade:nth-child(12) {
+    opacity: 0.85;
+  }
+}
+
 .empty-compact {
   margin-top: 24px;
   margin-bottom: 24px;

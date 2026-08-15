@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
-import { Loader2Icon, ScanLineIcon } from "lucide-react";
+import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
+import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
 import { SiteSheet } from "@/components/site-sheet";
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import {
   emptyFilterState,
@@ -23,6 +25,7 @@ import {
   filtersActive,
   type SiteFilterState,
 } from "@/lib/site-filters";
+import { sitePageFromOverview } from "@/lib/scan-operation";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
 export function App() {
@@ -99,11 +102,7 @@ function Board() {
               })();
             }}
           >
-            {scanAllBusy ? (
-              <Loader2Icon className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <ScanLineIcon className="size-4" aria-hidden />
-            )}
+            {scanAllBusy ? <Spinner size={14} /> : <ScanLineIcon className="size-4" aria-hidden />}
             Scan all
           </Button>
           <Button type="button" onClick={() => setAddOpen(true)}>
@@ -129,7 +128,14 @@ function Board() {
             <SiteFilters sites={sites} state={filters} onChange={setFilters} />
             {scanning > 0 ? (
               <p className="scanning-note">
-                <b>{scanning}</b> scanning
+                <ProcessingIndicator
+                  label={
+                    <>
+                      <b className="font-semibold text-foreground">{scanning}</b> scanning
+                    </>
+                  }
+                  size={12}
+                />
               </p>
             ) : null}
           </div>
@@ -157,7 +163,8 @@ function Board() {
           loaded={loaded}
           onOpen={(id) => {
             if (id !== selected) {
-              setPage(null);
+              const row = sites.find((item) => item.site.id === id);
+              setPage(row ? sitePageFromOverview(row, page) : null);
             }
             setSelected(id);
           }}

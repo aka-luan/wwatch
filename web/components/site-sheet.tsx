@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { ChevronDownIcon, ExternalLinkIcon, Loader2Icon, LogInIcon, RefreshCwIcon } from "lucide-react";
+import { ChevronDownIcon, ExternalLinkIcon, LogInIcon, RefreshCwIcon } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyNote, FindingRow, RowAction } from "@/components/finding-row";
+import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import {
@@ -33,10 +34,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { siteFindingSections, type DisplayFinding } from "@/lib/finding-groups";
-import { ago, host } from "@/lib/format";
+import { ago, agoWords, formatScanWhen, host } from "@/lib/format";
 import { helperCan, isRepairablePath } from "@/lib/helper";
+import { scanningLabel, scanOperationOf, type ScanOperationState } from "@/lib/scan-operation";
 import { siteOverview } from "@/lib/site-overview";
 import { SITE_STATUS_LABEL, siteStatusFromCounts } from "@/lib/status";
 import type { Finding, HelperInfo, InstalledPlugin, ScanSummary, SitePage } from "@/lib/types";
@@ -118,12 +121,30 @@ function SiteActionCenter({
   } | null>(null);
   const [confirmJob, setConfirmJob] = useState<ConfirmJob | null>(null);
   const [brokenLinks, setBrokenLinks] = useState<Finding[] | null>(null);
+  const operation = scanOperationOf(page);
+  const scanning = operation.kind === "running" || scanBusy;
 
   useEffect(() => {
     setHelperError("");
     setLoginBusy(false);
     setScanBusy(false);
   }, [page.site.id]);
+
+  async function startScan(successToast = "Scan started") {
+    setHelperError("");
+    setScanBusy(true);
+    try {
+      await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
+      toast.success(successToast);
+      await onChanged();
+    } catch (error) {
+      const text = error instanceof Error ? error.message : "Could not start scan";
+      setHelperError(text);
+      toast.error(text);
+    } finally {
+      setScanBusy(false);
+    }
+  }
 
   async function applyHelper(path: string, body: unknown, failed: string) {
     setHelperError("");
@@ -157,8 +178,16 @@ function SiteActionCenter({
           {page.latest?.coreVersion ? (
             <span className="text-[13px] text-muted-foreground">WP {page.latest.coreVersion}</span>
           ) : null}
-          {page.running ? <span className="text-[13px] text-muted-foreground">Scanning</span> : null}
         </div>
+        <ScanOperationBanner
+          operation={operation}
+          scanning={scanning}
+          historyReady={Boolean(page.username)}
+          onRetry={() => {
+            void startScan("Scan started");
+          }}
+          retryBusy={scanBusy}
+        />
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
@@ -199,33 +228,20 @@ function SiteActionCenter({
                 })();
               }}
             >
-              {loginBusy ? <Loader2Icon className="size-4 animate-spin" aria-hidden /> : <LogInIcon />}
+              {loginBusy ? <Spinner size={14} /> : <LogInIcon />}
               WP Admin
             </Button>
           ) : null}
           <Button
             variant="outline"
             size="sm"
-            disabled={scanBusy}
-            aria-busy={scanBusy}
+            disabled={scanning}
+            aria-busy={scanning}
             onClick={() => {
-              void (async () => {
-                setScanBusy(true);
-                try {
-                  await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-                  toast.success("Scan started");
-                  await onChanged();
-                } finally {
-                  setScanBusy(false);
-                }
-              })();
+              void startScan();
             }}
           >
-            {scanBusy ? (
-              <Loader2Icon className="size-4 animate-spin" aria-hidden />
-            ) : (
-              <RefreshCwIcon />
-            )}
+            {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
             Scan now
           </Button>
         </div>
@@ -275,7 +291,7 @@ function SiteActionCenter({
           ) : (
             <EmptyNote tone="positive">No action required on the last scan.</EmptyNote>
           )
-        ) : (
+        ) : scanning ? null : (
           <p className="help pt-4">{overview.primaryLabel}.</p>
         )}
         <Separator className="my-4" />
@@ -314,7 +330,9 @@ function SiteActionCenter({
           <p className="mb-3 font-mono text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
             {page.site.origin}
           </p>
-          <p className="mb-3 text-sm text-muted-foreground">Signed in as {page.username}</p>
+          {page.username ? (
+            <p className="mb-3 text-sm text-muted-foreground">Signed in as {page.username}</p>
+          ) : null}
           <div className="flex flex-wrap gap-2">
             <Button variant="outline" type="button" size="sm" onClick={onEdit}>
               Edit credentials
@@ -447,6 +465,72 @@ function SecondaryBlock({ title, children }: { title: string; children: ReactNod
       </CollapsibleTrigger>
       <CollapsibleContent className="pb-3">{children}</CollapsibleContent>
     </Collapsible>
+  );
+}
+
+function ScanOperationBanner({
+  operation,
+  scanning,
+  historyReady,
+  onRetry,
+  retryBusy,
+}: {
+  operation: ScanOperationState;
+  scanning: boolean;
+  historyReady: boolean;
+  onRetry: () => void;
+  retryBusy: boolean;
+}) {
+  if (scanning || operation.kind === "running") {
+    const stage = operation.kind === "running" ? operation.stage : null;
+    const showingFrom = operation.kind === "running" ? operation.showingFrom : null;
+    return (
+      <div className="space-y-0.5" aria-live="polite">
+        <ProcessingIndicator label={`${scanningLabel(stage)}…`} />
+        {showingFrom ? (
+          <p className="text-[13px] leading-5 text-muted-foreground">
+            Showing results from {formatScanWhen(showingFrom)}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  if (operation.kind !== "failed") {
+    return null;
+  }
+
+  const lastSuccessfulCopy = operation.lastSuccessfulAt
+    ? `Last successful result from ${agoWords(operation.lastSuccessfulAt)}.`
+    : historyReady
+      ? "No earlier successful result yet."
+      : null;
+
+  return (
+    <div className="space-y-1" aria-live="polite">
+      <p className="text-sm font-medium text-destructive">Scan failed</p>
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        {lastSuccessfulCopy ? (
+          <p className="min-w-0 text-[13px] leading-5 text-muted-foreground">{lastSuccessfulCopy}</p>
+        ) : (
+          <span className="min-w-0" />
+        )}
+        <Button
+          variant="outline"
+          size="xs"
+          type="button"
+          disabled={retryBusy}
+          aria-busy={retryBusy}
+          onClick={onRetry}
+        >
+          {retryBusy ? <Spinner size={12} /> : null}
+          Retry
+        </Button>
+      </div>
+      {operation.detail ? (
+        <p className="text-[12px] leading-4 text-muted-foreground [overflow-wrap:anywhere]">{operation.detail}</p>
+      ) : null}
+    </div>
   );
 }
 

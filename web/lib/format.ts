@@ -24,3 +24,39 @@ export function ago(iso: string | null | undefined): string {
   }
   return `${Math.round(hr / 24)}d ago`;
 }
+
+/** Absolute local stamp for “Showing results from …”. */
+export function formatScanWhen(iso: string): string {
+  return new Date(iso).toLocaleString(undefined, {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
+
+/** Longer relative phrase for failure copy (“18 minutes ago”). */
+export function agoWords(iso: string | null | undefined): string {
+  if (!iso) {
+    return "never";
+  }
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  if (min < 1) {
+    return "just now";
+  }
+  if (min === 1) {
+    return "1 minute ago";
+  }
+  if (min < 60) {
+    return `${min} minutes ago`;
+  }
+  const hr = Math.round(min / 60);
+  if (hr === 1) {
+    return "1 hour ago";
+  }
+  if (hr < 48) {
+    return `${hr} hours ago`;
+  }
+  const days = Math.round(hr / 24);
+  return days === 1 ? "1 day ago" : `${days} days ago`;
+}
