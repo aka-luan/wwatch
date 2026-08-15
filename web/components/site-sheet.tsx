@@ -129,12 +129,12 @@ function SiteActionCenter({
     setScanBusy(false);
   }, [page.site.id]);
 
-  async function startScan(successToast = "Scan started") {
+  async function startScan() {
     setHelperError("");
     setScanBusy(true);
     try {
       await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-      toast.success(successToast);
+      toast.message("Scan started");
       await onChanged();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Could not start scan";
@@ -183,7 +183,7 @@ function SiteActionCenter({
           scanning={scanning}
           historyReady={Boolean(page.username)}
           onRetry={() => {
-            void startScan("Scan started");
+            void startScan();
           }}
           retryBusy={scanBusy}
         />
@@ -241,9 +241,8 @@ function SiteActionCenter({
             }}
           >
             {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
-            Scan now
-          </Button>
-        </div>
+            {scanning ? "Scanning…" : "Scan now"}
+          </Button>        </div>
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
         <HelperHelp helper={helper} />
@@ -298,7 +297,7 @@ function SiteActionCenter({
           <h3 id="scan-history-heading" className="mb-2 text-sm font-medium">
             Scan history
           </h3>
-          <ScanTimeline page={page} scanning={scanning} />
+          <ScanTimeline page={page} />
         </section>
         <SecondaryBlock title="Site configuration">
           {plugins.length ? (
@@ -489,7 +488,9 @@ function ScanOperationBanner({
           <p className="text-[13px] leading-5 text-muted-foreground">
             Showing results from {formatScanWhen(showingFrom)}
           </p>
-        ) : null}
+        ) : (
+          <p className="text-[13px] leading-5 text-muted-foreground">Waiting for the first result.</p>
+        )}
       </div>
     );
   }

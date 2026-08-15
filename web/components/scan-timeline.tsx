@@ -1,38 +1,22 @@
 import { EmptyNote } from "@/components/finding-row";
-import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusDot } from "@/components/status-dot";
 import { timelineWhen } from "@/lib/format";
 import { scanHistoryEntries, scansForTimeline, type ScanHistoryEntry } from "@/lib/scan-history";
 import type { SitePage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-export function ScanTimeline({
-  page,
-  scanning,
-}: {
-  page: Pick<SitePage, "latest" | "history">;
-  scanning: boolean;
-}) {
+export function ScanTimeline({ page }: { page: Pick<SitePage, "latest" | "history"> }) {
   const entries = scanHistoryEntries(scansForTimeline(page));
-  if (!scanning && entries.length === 0) {
+  if (entries.length === 0) {
     return <EmptyNote>No scans yet.</EmptyNote>;
   }
 
   return (
-    <div>
-      {scanning ? (
-        <div className={entries.length ? "mb-2" : undefined}>
-          <ProcessingIndicator label="Scanning now" />
-        </div>
-      ) : null}
-      {entries.length ? (
-        <ol className="m-0 list-none p-0" aria-label="Scan history, newest first">
-          {entries.map((entry, index) => (
-            <ScanTimelineItem key={entry.scan.id} entry={entry} last={index === entries.length - 1} />
-          ))}
-        </ol>
-      ) : null}
-    </div>
+    <ol className="m-0 list-none p-0" aria-label="Scan history, newest first">
+      {entries.map((entry, index) => (
+        <ScanTimelineItem key={entry.scan.id} entry={entry} last={index === entries.length - 1} />
+      ))}
+    </ol>
   );
 }
 

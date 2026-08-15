@@ -6,6 +6,7 @@ import {
   fleetUpdateSummary,
   updateKindOf,
   updateRequestBody,
+  versionPair,
 } from "./fleet-updates.ts";
 import type { Finding, OverviewRow } from "./types.ts";
 
@@ -92,6 +93,14 @@ test("fleetUpdateSummary groups updates by site and counts totals", () => {
   assert.equal(summary.groups[0]?.hasCore, true);
   assert.equal(summary.groups[0]?.canUpdate, true);
   assert.equal(summary.groups[1]?.items[0]?.detail, "9.0 → 9.1");
+  assert.equal(summary.groups[1]?.items[0]?.installed, "9.0");
+  assert.equal(summary.groups[1]?.items[0]?.latest, "9.1");
+});
+
+test("versionPair prefers structured fields then detail text", () => {
+  assert.deepEqual(versionPair({ installed: "1", latest: "2" }), { installed: "1", latest: "2" });
+  assert.deepEqual(versionPair({}, "3.20.2 → 4.2.2"), { installed: "3.20.2", latest: "4.2.2" });
+  assert.equal(versionPair({}, "no versions"), null);
 });
 
 test("fleetUpdateSummary marks sites without update capability", () => {
