@@ -1,27 +1,23 @@
 import { useEffect, useRef } from "react";
 import { CheckIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
-import { StatusDot } from "@/components/status-dot";
-import { Badge, badgeVariants } from "@/components/ui/badge";
+import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import {
-  PRIMARY_STATUS_FILTERS,
   SECONDARY_FILTERS,
   SECONDARY_FILTER_LABEL,
   filtersActive,
-  primaryFilterLabel,
   removeSecondaryFilter,
   secondaryFilterCounts,
-  statusFilterCounts,
   toggleSecondaryFilter,
-  type PrimaryStatusFilter,
   type SecondaryFilter,
   type SiteFilterState,
 } from "@/lib/site-filters";
 import { cn } from "@/lib/utils";
 import type { OverviewRow } from "@/lib/types";
 
+/** Search + secondary (kind-of-problem) filters. The status summary/filter lives in SiteSummaryBar. */
 export function SiteFilters({
   sites,
   state,
@@ -31,7 +27,6 @@ export function SiteFilters({
   state: SiteFilterState;
   onChange: (next: SiteFilterState) => void;
 }) {
-  const counts = statusFilterCounts(sites);
   const secondaryCounts = secondaryFilterCounts(sites);
   const active = filtersActive(state);
   const searchRef = useRef<HTMLInputElement>(null);
@@ -97,18 +92,6 @@ export function SiteFilters({
         ) : null}
       </div>
 
-      <div className="status-filter-scroll -mx-1 flex gap-1 overflow-x-auto px-1 py-0.5" role="group" aria-label="Fleet summary">
-        {PRIMARY_STATUS_FILTERS.map((filter) => (
-          <StatusFilterChip
-            key={filter}
-            filter={filter}
-            count={counts[filter]}
-            active={state.status === filter}
-            onSelect={() => onChange({ ...state, status: filter })}
-          />
-        ))}
-      </div>
-
       {state.secondary.length > 0 ? (
         <div className="flex flex-wrap items-center gap-1.5">
           <span className="text-xs text-muted-foreground">Filters:</span>
@@ -128,67 +111,6 @@ export function SiteFilters({
       ) : null}
     </section>
   );
-}
-
-function StatusFilterChip({
-  filter,
-  count,
-  active,
-  onSelect,
-}: {
-  filter: PrimaryStatusFilter;
-  count: number;
-  active: boolean;
-  onSelect: () => void;
-}) {
-  const label = primaryFilterLabel(filter);
-  const countClass = countToneClass(filter, count, active);
-  return (
-    <Badge
-      variant={active ? "secondary" : "outline"}
-      render={
-        <button
-          type="button"
-          aria-pressed={active}
-          aria-label={`${label}, ${count} ${count === 1 ? "site" : "sites"}`}
-          onClick={onSelect}
-        />
-      }
-      className={cn(
-        "h-7 min-h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2.5 text-xs font-medium",
-        "focus-visible:ring-2 focus-visible:ring-ring/50",
-        active
-          ? "bg-secondary text-foreground ring-1 ring-foreground/15 ring-inset"
-          : "bg-transparent text-muted-foreground ring-1 ring-border/70 ring-inset hover:bg-muted/60 hover:text-foreground",
-      )}
-    >
-      {filter === "all" ? null : (
-        <StatusDot
-          status={filter}
-          decorative
-          className={cn("size-1.5", count === 0 && "opacity-40")}
-        />
-      )}
-      <span>{label}</span>
-      <span className={cn("tabular-nums", countClass)}>{count}</span>
-    </Badge>
-  );
-}
-
-function countToneClass(filter: PrimaryStatusFilter, count: number, active: boolean): string {
-  if (active) {
-    return "font-medium text-foreground";
-  }
-  if (count === 0 || filter === "all") {
-    return "font-normal opacity-70";
-  }
-  if (filter === "critical") {
-    return "font-medium text-destructive";
-  }
-  if (filter === "attention") {
-    return "font-medium text-warning";
-  }
-  return "font-normal opacity-70";
 }
 
 function ActiveFilterBadge({ label, onRemove }: { label: string; onRemove: () => void }) {

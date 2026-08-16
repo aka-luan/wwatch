@@ -22,6 +22,7 @@ import {
   type AddSiteFieldErrors,
   type AddSiteValues,
 } from "@/lib/add-site-form";
+import { COPY } from "@/lib/copy";
 import { cn } from "@/lib/utils";
 
 export function AddSiteDialog({
@@ -138,7 +139,7 @@ export function AddSiteDialog({
                 type="button"
                 className="group inline-flex items-center gap-1 rounded-md text-left text-[13px] text-ring hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
               >
-                How do I create one?
+                {COPY.addSite.stepsTrigger}
                 <ChevronDownIcon
                   className="size-3.5 shrink-0 transition-transform duration-150 group-aria-expanded:rotate-180"
                   aria-hidden
@@ -226,17 +227,11 @@ export function AddSiteDialog({
 
 function ApplicationPasswordHelp() {
   return (
-    <div className="space-y-2 rounded-lg bg-muted/40 px-3 py-2.5 text-[13px] leading-5 text-muted-foreground ring-1 ring-border/70 ring-inset">
-      <p>
-        In WP Admin open <span className="text-foreground">Users → Profile → Application Passwords</span>.
-      </p>
-      <p>Create one on an administrator account when you want updates and fixes from the board.</p>
-      <p>
-        <span className="text-foreground">Username</span> is that account&apos;s WordPress login.{" "}
-        <span className="text-foreground">Application password</span> is the generated password WordPress
-        shows once.
-      </p>
-    </div>
+    <ol className="list-decimal space-y-1.5 rounded-lg bg-muted/40 py-2.5 pr-3 pl-7 text-[13px] leading-5 text-muted-foreground marker:text-muted-foreground/70 ring-1 ring-border/70 ring-inset">
+      {COPY.addSite.steps.map((step) => (
+        <li key={step}>{step}</li>
+      ))}
+    </ol>
   );
 }
 

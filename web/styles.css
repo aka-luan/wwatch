@@ -179,66 +179,9 @@ body {
   gap: 8px;
 }
 
-.status-filter-scroll {
-  scrollbar-width: none;
-  -webkit-overflow-scrolling: touch;
-}
-
-.status-filter-scroll::-webkit-scrollbar {
-  display: none;
-}
-
-.board-toolbar-meta {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px 14px;
-}
-
 .scanning-note {
   margin: 0;
   font-size: 12px;
-}
-
-.updates-entry {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px 10px;
-  margin: 0;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--muted-foreground);
-  font: inherit;
-  font-size: 12px;
-  line-height: 1.4;
-  text-align: left;
-  cursor: pointer;
-}
-
-.updates-entry b {
-  color: var(--foreground);
-  font-weight: 500;
-}
-
-.updates-entry-action {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  color: var(--foreground);
-  font-weight: 500;
-}
-
-.updates-entry:hover .updates-entry-action {
-  text-decoration: underline;
-  text-underline-offset: 3px;
-}
-
-.updates-entry:focus-visible {
-  outline: 2px solid var(--ring);
-  outline-offset: 3px;
-  border-radius: var(--radius);
 }
 
 .wwatch-spinner {

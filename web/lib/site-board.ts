@@ -28,6 +28,10 @@ export function compareBoardSites(a: BoardSite, b: BoardSite): number {
   if (rank !== 0) {
     return rank;
   }
+  const recency = recencyOf(b) - recencyOf(a);
+  if (recency !== 0) {
+    return recency;
+  }
   const byName = a.row.site.name.localeCompare(b.row.site.name, "en", {
     numeric: true,
     sensitivity: "base",
@@ -36,6 +40,16 @@ export function compareBoardSites(a: BoardSite, b: BoardSite): number {
     return byName;
   }
   return a.row.site.id.localeCompare(b.row.site.id);
+}
+
+/** Most recent activity first: a running scan's start, else the last finished scan. 0 when neither exists. */
+function recencyOf(item: BoardSite): number {
+  const iso = item.row.running?.startedAt ?? item.row.latest?.finishedAt ?? null;
+  if (!iso) {
+    return 0;
+  }
+  const parsed = Date.parse(iso);
+  return Number.isNaN(parsed) ? 0 : parsed;
 }
 
 export function siteBoard(rows: readonly OverviewRow[]): SiteBoard {

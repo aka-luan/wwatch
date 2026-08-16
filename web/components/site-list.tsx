@@ -1,19 +1,25 @@
 import { ChevronDownIcon, CircleCheckIcon } from "lucide-react";
-import { ProcessingIndicator } from "@/components/processing-indicator";
-import { StatusBadge } from "@/components/status-badge";
-import { StatusDot } from "@/components/status-dot";
+import { SiteRow } from "@/components/site-row";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ago, formatScanWhen, host } from "@/lib/format";
-import { scanningLabel, scanOperationOf } from "@/lib/scan-operation";
 import { siteBoard, type BoardSite, type SiteBoard } from "@/lib/site-board";
 import { filterEmptyHeading, filtersActive, type SiteFilterState } from "@/lib/site-filters";
-import { siteOverview, siteRowCopy } from "@/lib/site-overview";
-import { SITE_STATUS_LABEL } from "@/lib/status";
-import { cn } from "@/lib/utils";
-import type { OverviewRow } from "@/lib/types";
+import type { OverviewRow, SitePage } from "@/lib/types";
+
+type SiteListProps = {
+  sites: OverviewRow[];
+  fleetCount: number;
+  filters: SiteFilterState;
+  onClearFilters?: () => void;
+  loaded: boolean;
+  selectedId: string | null;
+  selectedPage: SitePage | null;
+  onToggle: (id: string) => void;
+  onEdit: () => void;
+  onChanged: () => Promise<void>;
+};
 
 export function SiteList({
   sites,
@@ -21,15 +27,12 @@ export function SiteList({
   filters,
   onClearFilters,
   loaded,
-  onOpen,
-}: {
-  sites: OverviewRow[];
-  fleetCount: number;
-  filters: SiteFilterState;
-  onClearFilters?: () => void;
-  loaded: boolean;
-  onOpen: (id: string) => void;
-}) {
+  selectedId,
+  selectedPage,
+  onToggle,
+  onEdit,
+  onChanged,
+}: SiteListProps) {
   const filtering = filtersActive(filters);
 
   if (!loaded) {
@@ -71,20 +74,21 @@ export function SiteList({
   }
 
   const board = siteBoard(sites);
+  const rowProps = { selectedId, selectedPage, onToggle, onEdit, onChanged };
   return (
     <div className="site-list">
       {filtering ? (
-        <FilteredBoard board={board} onOpen={onOpen} />
+        <FilteredBoard board={board} {...rowProps} />
       ) : board.allHealthy ? (
         <AllHealthyNote count={sites.length} />
       ) : (
-        <NeedsAttentionSection board={board} onOpen={onOpen} />
+        <NeedsAttentionSection board={board} {...rowProps} />
       )}
       {!filtering && board.healthy.length > 0 ? (
         <>
           {board.needsAttention.length > 0 ? <Separator className="my-4" /> : null}
           <div className={board.needsAttention.length > 0 ? undefined : "mt-4"}>
-            <HealthySection board={board} onOpen={onOpen} />
+            <HealthySection board={board} {...rowProps} />
           </div>
         </>
       ) : null}
@@ -92,44 +96,47 @@ export function SiteList({
   );
 }
 
-function FilteredBoard({ board, onOpen }: { board: SiteBoard; onOpen: (id: string) => void }) {
+type RowProps = {
+  selectedId: string | null;
+  selectedPage: SitePage | null;
+  onToggle: (id: string) => void;
+  onEdit: () => void;
+  onChanged: () => Promise<void>;
+};
+
+function FilteredBoard({ board, ...rowProps }: { board: SiteBoard } & RowProps) {
   const mixed = board.needsAttention.length > 0 && board.healthy.length > 0;
   if (!mixed) {
     const items = board.needsAttention.length > 0 ? board.needsAttention : board.healthy;
-    const density = board.needsAttention.length > 0 ? "full" : "compact";
-    return <SiteRows items={items} density={density} onOpen={onOpen} />;
+    return <SiteRows items={items} {...rowProps} />;
   }
   return (
     <>
-      <NeedsAttentionSection board={board} onOpen={onOpen} />
+      <NeedsAttentionSection board={board} {...rowProps} />
       <Separator className="my-4" />
-      <HealthySection board={board} onOpen={onOpen} allowCollapse={false} />
+      <HealthySection board={board} allowCollapse={false} {...rowProps} />
     </>
   );
 }
 
-function NeedsAttentionSection({ board, onOpen }: { board: SiteBoard; onOpen: (id: string) => void }) {
+function NeedsAttentionSection({ board, ...rowProps }: { board: SiteBoard } & RowProps) {
   return (
     <section aria-labelledby="needs-attention-heading">
       <h2 id="needs-attention-heading" className="px-2 pb-1 text-sm font-medium">
         Needs attention
       </h2>
-      <SiteRows items={board.needsAttention} density="full" onOpen={onOpen} />
+      <SiteRows items={board.needsAttention} {...rowProps} />
     </section>
   );
 }
 
 function HealthySection({
   board,
-  onOpen,
   allowCollapse = true,
-}: {
-  board: SiteBoard;
-  onOpen: (id: string) => void;
-  allowCollapse?: boolean;
-}) {
+  ...rowProps
+}: { board: SiteBoard; allowCollapse?: boolean } & RowProps) {
   const heading = `Healthy · ${board.healthy.length}`;
-  const rows = <SiteRows items={board.healthy} density="compact" onOpen={onOpen} />;
+  const rows = <SiteRows items={board.healthy} {...rowProps} />;
 
   if (allowCollapse && board.collapseHealthy) {
     return (
@@ -176,95 +183,26 @@ function AllHealthyNote({ count }: { count: number }) {
   );
 }
 
-function SiteRows({
-  items,
-  density,
-  onOpen,
-}: {
-  items: BoardSite[];
-  density: "full" | "compact";
-  onOpen: (id: string) => void;
-}) {
+function SiteRows({ items, selectedId, selectedPage, onToggle, onEdit, onChanged }: { items: BoardSite[] } & RowProps) {
   return (
     <div>
-      {items.map((item, index) => (
-        <div key={item.row.site.id}>
-          {index > 0 ? <Separator /> : null}
-          <SiteRow row={item.row} density={density} onOpen={onOpen} />
-        </div>
-      ))}
+      {items.map((item, index) => {
+        const id = item.row.site.id;
+        const expanded = selectedId === id;
+        return (
+          <div key={id}>
+            {index > 0 ? <Separator /> : null}
+            <SiteRow
+              row={item.row}
+              expanded={expanded}
+              page={expanded ? selectedPage : null}
+              onToggle={() => onToggle(id)}
+              onEdit={onEdit}
+              onChanged={onChanged}
+            />
+          </div>
+        );
+      })}
     </div>
-  );
-}
-
-function SiteRow({
-  row,
-  density,
-  onOpen,
-}: {
-  row: OverviewRow;
-  density: "full" | "compact";
-  onOpen: (id: string) => void;
-}) {
-  const overview = siteOverview(row);
-  const operation = scanOperationOf(row);
-  const copy = siteRowCopy(overview, ago, formatScanWhen);
-  const compact = density === "compact";
-  const scanning = operation.kind === "running";
-
-  return (
-    <button
-      type="button"
-      aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}${
-        scanning ? ", scanning" : ""
-      }, ${copy.finding ?? copy.meta}`}
-      className={rowButtonClass(density)}
-      aria-busy={scanning}
-      onClick={() => onOpen(row.site.id)}
-    >
-      {compact ? (
-        <StatusDot status={overview.status} decorative className="mt-1.5" />
-      ) : null}
-      <span className="min-w-0 flex-1">
-        <span className="flex items-start justify-between gap-3">
-          <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
-            <span
-              className={cn(
-                "min-w-0 leading-5 [overflow-wrap:anywhere] text-foreground",
-                compact ? "font-medium" : "font-semibold",
-              )}
-            >
-              {row.site.name}
-            </span>
-            <span className="mono host min-w-0 truncate text-[13px] sm:max-w-[45%]">
-              {host(row.site.origin)}
-            </span>
-          </span>
-          {compact ? null : (
-            <StatusBadge status={overview.status} className="mt-0.5 shrink-0" />
-          )}
-        </span>
-        {copy.finding ? (
-          <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span>
-        ) : null}
-        {scanning || copy.meta ? (
-          <span className="mt-1 flex flex-col gap-0.5 text-[12px] leading-4 text-muted-foreground">
-            {scanning ? (
-              <ProcessingIndicator label={`${scanningLabel(operation.stage)}…`} size={12} />
-            ) : null}
-            {copy.meta ? <span>{copy.meta}</span> : null}
-          </span>
-        ) : null}
-      </span>
-    </button>
-  );
-}
-
-function rowButtonClass(density: "full" | "compact"): string {
-  return cn(
-    "group flex w-full rounded-md border-0 bg-transparent px-2 text-left",
-    "cursor-pointer appearance-none transition-colors duration-150",
-    "hover:bg-muted/50 active:bg-muted/70 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
-    density === "compact" ? "items-start gap-3 py-2" : "items-start gap-3 py-2.5 text-foreground",
   );
 }

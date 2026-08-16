@@ -1,5 +1,6 @@
 import { isUpdateFinding, primaryFindingOf, updateCount } from "./primary-finding";
-import { siteStatusOf, type SiteStatus } from "./status";
+import { effectiveStatus, staleHours, staleLabel } from "./site-status";
+import type { SiteStatus } from "./status";
 import type { Finding, OverviewRow } from "./types";
 
 export type SiteOverview = {
@@ -9,19 +10,23 @@ export type SiteOverview = {
   extra: string | null;
   finishedAt: string | null;
   running: boolean;
+  staleLabel: string | null;
 };
 
 export function siteOverview(row: OverviewRow): SiteOverview {
-  const status = siteStatusOf(row);
+  const status = effectiveStatus(row);
   const findings = row.latest?.findings ?? [];
   const primary = primaryFindingOf(findings);
+  const hours = staleHours(row);
+  const stale = hours !== null ? staleLabel(hours) : null;
   return {
     status,
-    primaryLabel: primaryLabelOf({ status, primary, running: Boolean(row.running) }),
+    primaryLabel: primaryLabelOf({ status, primary, running: Boolean(row.running), stale }),
     emphasizePrimary: status !== "healthy",
-    extra: extraLabelOf(findings, primary),
+    extra: extraLabelOf(findings, primary, stale, primary !== null),
     finishedAt: row.latest?.finishedAt ?? null,
     running: Boolean(row.running),
+    staleLabel: stale,
   };
 }
 
@@ -29,30 +34,36 @@ function primaryLabelOf({
   status,
   primary,
   running,
+  stale,
 }: {
   status: SiteStatus;
   primary: Finding | null;
   running: boolean;
+  stale: string | null;
 }): string {
   if (status === "unknown") {
     return running ? "Scan in progress" : "Not scanned yet";
   }
   if (!primary) {
-    return "No action required";
+    return stale ?? "No action required";
   }
   return primary.title;
 }
 
-function extraLabelOf(findings: readonly Finding[], primary: Finding | null): string | null {
+function extraLabelOf(
+  findings: readonly Finding[],
+  primary: Finding | null,
+  stale: string | null,
+  hasPrimary: boolean,
+): string | null {
   const updates = updateCount(findings);
+  const staleExtra = hasPrimary ? stale : null;
   if (updates === 0) {
-    return null;
+    return staleExtra;
   }
   const primaryIsOnlyUpdate = primary !== null && isPrimaryTheSoleUpdate(primary, updates);
-  if (primaryIsOnlyUpdate) {
-    return null;
-  }
-  return `${updates} update${updates === 1 ? "" : "s"}`;
+  const updatesExtra = primaryIsOnlyUpdate ? null : `${updates} update${updates === 1 ? "" : "s"}`;
+  return [staleExtra, updatesExtra].filter(Boolean).join(" · ") || null;
 }
 
 function isPrimaryTheSoleUpdate(primary: Finding, updates: number): boolean {
