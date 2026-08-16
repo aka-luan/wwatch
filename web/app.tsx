@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
+import { AddSiteDialog } from "@/components/add-site-dialog";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
@@ -252,6 +253,7 @@ function Board() {
   );
 }
 
+<<<<<<< HEAD
 function AddSiteDialog({
   open,
   onOpenChange,
@@ -324,6 +326,8 @@ function AddSiteDialog({
   );
 }
 
+=======
+>>>>>>> origin/main
 function EditSiteDialog({
   open,
   onOpenChange,
