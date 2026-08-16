@@ -146,6 +146,40 @@ export function siteFindingSections({
   });
 }
 
+export type ActionabilityGroups = {
+  /** Actionable findings and pending updates, most severe first — each carries its own action. */
+  needsAction: DisplayFinding[];
+  /** Non-actionable info findings, collapsed behind a single count in the UI. */
+  informational: DisplayFinding[];
+};
+
+/**
+ * Groups findings by whether they need action, not by scanner category — for the row's inline
+ * expansion, where "what do I do next" matters more than which subsystem found it.
+ */
+export function siteActionabilityGroups(findings: readonly Finding[]): ActionabilityGroups {
+  const needsAction: DisplayFinding[] = [];
+  const informational: DisplayFinding[] = [];
+  const broken: Finding[] = [];
+
+  for (const finding of findings) {
+    if (finding.kind === "broken_link") {
+      broken.push(finding);
+      continue;
+    }
+    const display = toDisplayFinding(finding);
+    (display.tone === "info" ? informational : needsAction).push(display);
+  }
+  if (broken.length) {
+    needsAction.push(collapsedBrokenLinks(broken));
+  }
+
+  return {
+    needsAction: dedupeDisplayFindings(needsAction).sort(compareDisplayFindings),
+    informational: dedupeDisplayFindings(informational).sort(compareDisplayFindings),
+  };
+}
+
 function toDisplayFinding(finding: Finding): DisplayFinding {
   const copy = findingDisplayCopy(finding);
   const tone = toneOf(finding);
@@ -186,6 +220,7 @@ function collapsedBrokenLinks(links: Finding[]): DisplayFinding {
     status: "attention",
     statusLabel: "Attention",
     title: `${links.length} broken links`,
+    detail: sorted.map((link) => `${link.url ?? link.detail}${link.httpStatus ? ` (${link.httpStatus})` : ""}`).join("; "),
     compact: false,
     showStatus: true,
     tone: "actionable",

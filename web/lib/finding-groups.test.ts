@@ -4,6 +4,7 @@ import {
   findingDisplayCopy,
   groupIdForFinding,
   sectionIdForFinding,
+  siteActionabilityGroups,
   siteFindingSections,
 } from "./finding-groups.ts";
 import type { Finding } from "./types.ts";
@@ -135,6 +136,31 @@ test("down findings skip reachable and TLS healthy checks", () => {
 
 test("does not invent healthy checks before the first scan", () => {
   assert.deepEqual(siteFindingSections({ origin: "https://example.com", scanned: false, findings: [] }), []);
+});
+
+test("actionability groups put every actionable and update finding ahead of info, by severity", () => {
+  const groups = siteActionabilityGroups([
+    finding("xmlrpc_open", "info", "xmlrpc.php accepts requests"),
+    finding("exposed_path", "info", "readme.html is public", { path: "/readme.html" }),
+    finding("plugin_unknown", "info", "Premium is not on wordpress.org"),
+    finding("plugin_update", "warn", "Akismet 1.0 → 1.1", { plugin: "akismet/akismet.php" }),
+    finding("exposed_path", "crit", "debug.log is public", { path: "/debug.log" }),
+    finding("broken_link", "warn", "Broken link (404)", { url: "https://example.com/missing" }),
+  ]);
+  assert.deepEqual(
+    groups.needsAction.map((item) => item.title),
+    ["debug.log is public", "Akismet", "Broken link (404)"],
+  );
+  assert.ok(groups.needsAction.every((item) => item.tone !== "info"));
+  assert.deepEqual(
+    groups.informational.map((item) => item.title).sort(),
+    ["Premium is not on wordpress.org", "readme.html is public", "xmlrpc.php accepts requests"].sort(),
+  );
+  assert.ok(groups.informational.every((item) => item.tone === "info"));
+});
+
+test("actionability groups are empty for a clean scan", () => {
+  assert.deepEqual(siteActionabilityGroups([]), { needsAction: [], informational: [] });
 });
 
 test("collapses repeated site health copy into one row", () => {

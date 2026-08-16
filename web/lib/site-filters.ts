@@ -1,7 +1,8 @@
 import { host } from "./format";
 import { groupIdForFinding } from "./finding-groups";
 import { isUpdateFinding } from "./primary-finding";
-import { SITE_STATUS_LABEL, siteStatusOf } from "./status";
+import { effectiveStatus } from "./site-status";
+import { SITE_STATUS_LABEL } from "./status";
 import type { Finding, OverviewRow } from "./types";
 
 export const PRIMARY_STATUS_FILTERS = ["all", "critical", "attention", "healthy"] as const;
@@ -68,7 +69,7 @@ export function statusFilterCounts(rows: readonly OverviewRow[]): StatusFilterCo
     healthy: 0,
   };
   for (const row of rows) {
-    const status = siteStatusOf(row);
+    const status = effectiveStatus(row);
     if (status === "critical" || status === "attention" || status === "healthy") {
       counts[status] += 1;
     }
@@ -115,7 +116,7 @@ function matchesStatus(row: OverviewRow, status: PrimaryStatusFilter): boolean {
   if (status === "all") {
     return true;
   }
-  return siteStatusOf(row) === status;
+  return effectiveStatus(row) === status;
 }
 
 function matchesQuery(row: OverviewRow, query: string): boolean {

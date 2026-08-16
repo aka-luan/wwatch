@@ -4,7 +4,6 @@ import { toast } from "sonner";
 import { EmptyNote, FindingRow, RowAction } from "@/components/finding-row";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { ScanTimeline } from "@/components/scan-timeline";
-import { StatusBadge } from "@/components/status-badge";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -18,31 +17,21 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { StatusBadge } from "@/components/status-badge";
 import { api } from "@/lib/api";
-import { siteFindingSections, type DisplayFinding, type FindingSection } from "@/lib/finding-groups";
-import { agoWords, formatScanWhen, host } from "@/lib/format";
+import { COPY } from "@/lib/copy";
+import { siteActionabilityGroups, type DisplayFinding } from "@/lib/finding-groups";
+import { agoWords, ago, formatScanWhen, host } from "@/lib/format";
 import { helperCan, isRepairablePath } from "@/lib/helper";
 import { scanningLabel, scanOperationOf, type ScanOperationState } from "@/lib/scan-operation";
-import { siteOverview } from "@/lib/site-overview";
-import { SITE_STATUS_LABEL } from "@/lib/status";
+import { siteOverview, siteRowCopy } from "@/lib/site-overview";
+import { SITE_STATUS_LABEL, type SiteStatus } from "@/lib/status";
+import { cn } from "@/lib/utils";
 import type { Finding, HelperInfo, InstalledPlugin, SitePage } from "@/lib/types";
+import type { OverviewRow } from "@/lib/types";
 
 type ConfirmJob = {
   title: string;
@@ -51,47 +40,93 @@ type ConfirmJob = {
   action: string;
 };
 
-export function SiteSheet({
-  open,
+const BORDER_TONE: Record<SiteStatus, string> = {
+  critical: "border-l-destructive",
+  attention: "border-l-warning",
+  healthy: "border-l-success",
+  unknown: "border-l-border",
+};
+
+/** Dense row: status lives only in the left border. Click to expand in place — no drawer, no modal. */
+export function SiteRow({
+  row,
+  expanded,
   page,
-  onOpenChange,
+  onToggle,
   onEdit,
   onChanged,
 }: {
-  open: boolean;
+  row: OverviewRow;
+  expanded: boolean;
   page: SitePage | null;
-  onOpenChange: (open: boolean) => void;
+  onToggle: () => void;
   onEdit: () => void;
   onChanged: () => Promise<void>;
 }) {
+  const overview = siteOverview(row);
+  const operation = scanOperationOf(row);
+  const copy = siteRowCopy(overview, ago, formatScanWhen);
+  const scanning = operation.kind === "running";
+  const panelId = `site-panel-${row.site.id}`;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-        <SheetContent
-          side="right"
-          className="h-full w-full! gap-0 overflow-hidden p-0 data-[side=right]:w-full! data-[side=right]:max-w-none sm:w-[34rem]! sm:data-[side=right]:w-[34rem]! sm:data-[side=right]:max-w-[34rem]!"
-        >
-        {page ? (
-          <SiteActionCenter page={page} onOpenChange={onOpenChange} onEdit={onEdit} onChanged={onChanged} />
-        ) : (
-          <div className="space-y-3 p-4 pt-12">
-            <Skeleton className="h-6 w-40" />
-            <Skeleton className="h-4 w-56" />
-            <Skeleton className="h-24 w-full" />
-          </div>
+    <div className={cn("border-l-[3px]", BORDER_TONE[overview.status])} style={{ borderRadius: 0 }}>
+      <button
+        type="button"
+        aria-expanded={expanded}
+        aria-controls={panelId}
+        aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}${scanning ? ", scanning" : ""}, ${
+          copy.finding ?? copy.meta
+        }`}
+        className={cn(
+          "group flex w-full items-start gap-3 border-0 bg-transparent px-3 py-2.5 text-left",
+          "cursor-pointer appearance-none transition-colors duration-150",
+          "hover:bg-muted/50 active:bg-muted/70 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
         )}
-      </SheetContent>
-    </Sheet>
+        onClick={onToggle}
+      >
+        <span className="min-w-0 flex-1">
+          <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
+            <span className="min-w-0 truncate leading-5 font-medium text-foreground">{row.site.name}</span>
+            <span className="mono host min-w-0 truncate text-[13px] sm:max-w-[45%]">{host(row.site.origin)}</span>
+          </span>
+          {copy.finding ? (
+            <span className="mt-1 block truncate text-sm leading-5 text-foreground">{copy.finding}</span>
+          ) : null}
+          {scanning || copy.meta ? (
+            <span className="mt-1 flex flex-col gap-0.5 text-[12px] leading-4 text-muted-foreground">
+              {scanning ? <ProcessingIndicator label={`${scanningLabel(operation.stage)}…`} size={12} /> : null}
+              {copy.meta ? <span>{copy.meta}</span> : null}
+            </span>
+          ) : null}
+        </span>
+        <ChevronDownIcon
+          className={cn("mt-0.5 size-4 shrink-0 text-muted-foreground transition-transform duration-150", expanded && "rotate-180")}
+          aria-hidden
+        />
+      </button>
+      {expanded ? (
+        <div id={panelId} className="border-t border-border/60 px-3 pb-3">
+          {page && page.site.id === row.site.id ? (
+            <ExpandedSitePanel page={page} onEdit={onEdit} onChanged={onChanged} />
+          ) : (
+            <div className="space-y-2 py-3">
+              <Skeleton className="h-4 w-40" />
+              <Skeleton className="h-16 w-full" />
+            </div>
+          )}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
-function SiteActionCenter({
+function ExpandedSitePanel({
   page,
-  onOpenChange,
   onEdit,
   onChanged,
 }: {
   page: SitePage;
-  onOpenChange: (open: boolean) => void;
   onEdit: () => void;
   onChanged: () => Promise<void>;
 }) {
@@ -100,26 +135,19 @@ function SiteActionCenter({
   const helper = page.latest?.helper ?? null;
   const canUpdate = helperCan(helper, "update");
   const canLogin = helperCan(helper, "login");
-  const updateFindings = findings.filter(
-    (finding) => finding.kind === "plugin_update" || finding.kind === "theme_update",
-  );
-  const overview = siteOverview(page);
-  const sections = siteFindingSections({
-    origin: page.site.origin,
-    findings,
-    scanned: Boolean(page.latest),
-  });
+  const groups = siteActionabilityGroups(findings);
+  const updateItems = groups.needsAction.filter((item) => item.tone === "update");
   const [removeOpen, setRemoveOpen] = useState(false);
   const [loginBusy, setLoginBusy] = useState(false);
   const [scanBusy, setScanBusy] = useState(false);
   const [helperError, setHelperError] = useState("");
+  const [infoOpen, setInfoOpen] = useState(false);
   const [pluginChange, setPluginChange] = useState<{
     plugin: string;
     name: string;
     status: "active" | "inactive";
   } | null>(null);
   const [confirmJob, setConfirmJob] = useState<ConfirmJob | null>(null);
-  const [brokenLinks, setBrokenLinks] = useState<Finding[] | null>(null);
   const operation = scanOperationOf(page);
   const scanning = operation.kind === "running" || scanBusy;
 
@@ -163,108 +191,97 @@ function SiteActionCenter({
   }
 
   return (
-    <>
-      <div className="flex h-full min-h-0 flex-col">
-      <SheetHeader className="sticky top-0 z-10 shrink-0 space-y-3 border-b border-border bg-popover pr-12 pt-[max(1rem,env(safe-area-inset-top))] pb-3 pl-[max(1rem,env(safe-area-inset-left))]">
-        <div className="min-w-0">
-          <SheetTitle className="text-base font-semibold [overflow-wrap:anywhere]">{page.site.name}</SheetTitle>
-          <SheetDescription className="font-mono text-[13px] [overflow-wrap:anywhere]">
-            {host(page.site.origin)}
-          </SheetDescription>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <StatusBadge status={overview.status}>{SITE_STATUS_LABEL[overview.status]}</StatusBadge>
-          {page.latest?.coreVersion ? (
-            <span className="text-[13px] text-muted-foreground">WP {page.latest.coreVersion}</span>
-          ) : null}
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-3 pt-3">
+      <div className="flex flex-wrap gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          nativeButton={false}
+          render={<a href={page.site.origin} target="_blank" rel="noreferrer" />}
+        >
+          <ExternalLinkIcon />
+          Open site
+        </Button>
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={scanning}
+          aria-busy={scanning}
+          onClick={() => void startScan()}
+        >
+          {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
+          {scanning ? "Scanning…" : "Scan now"}
+        </Button>
+        {canLogin ? (
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            nativeButton={false}
-            render={<a href={page.site.origin} target="_blank" rel="noreferrer" />}
-          >
-            <ExternalLinkIcon />
-            Open site
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={scanning}
-            aria-busy={scanning}
+            disabled={loginBusy}
+            aria-busy={loginBusy}
             onClick={() => {
-              void startScan();
+              void (async () => {
+                setHelperError("");
+                setLoginBusy(true);
+                const tab = window.open("about:blank", "wp-admin");
+                try {
+                  const result = await api<{ url: string }>(`/api/sites/${page.site.id}/wp-login`, {
+                    method: "POST",
+                  });
+                  if (tab) {
+                    tab.opener = null;
+                    tab.location.replace(result.url);
+                  } else {
+                    setHelperError("The browser blocked the login window. Allow popups for this board.");
+                  }
+                } catch (error) {
+                  tab?.close();
+                  setHelperError(error instanceof Error ? error.message : "Could not log in");
+                } finally {
+                  setLoginBusy(false);
+                }
+              })();
             }}
           >
-            {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
-            {scanning ? "Scanning…" : "Scan now"}
+            {loginBusy ? <Spinner size={14} /> : <LogInIcon />}
+            WP Admin
           </Button>
-          {canLogin ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              disabled={loginBusy}
-              aria-busy={loginBusy}
-              onClick={() => {
-                void (async () => {
-                  setHelperError("");
-                  setLoginBusy(true);
-                  const tab = window.open("about:blank", "wp-admin");
-                  try {
-                    const result = await api<{ url: string }>(`/api/sites/${page.site.id}/wp-login`, {
-                      method: "POST",
-                    });
-                    if (tab) {
-                      tab.opener = null;
-                      tab.location.replace(result.url);
-                    } else {
-                      setHelperError("The browser blocked the login window. Allow popups for this board.");
-                    }
-                  } catch (error) {
-                    tab?.close();
-                    setHelperError(error instanceof Error ? error.message : "Could not log in");
-                  } finally {
-                    setLoginBusy(false);
-                  }
-                })();
-              }}
-            >
-              {loginBusy ? <Spinner size={14} /> : <LogInIcon />}
-              WP Admin
-            </Button>
-          ) : null}
-
-        </div>
-        <ScanOperationBanner
-          operation={operation}
-          scanning={scanning}
-          historyReady={Boolean(page.username)}
-          onRetry={() => {
-            void startScan();
-          }}
-          retryBusy={scanBusy}
-        />
-      </SheetHeader>
-      <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        {helperError ? (
-          <p className="error pt-3" role="alert" aria-live="assertive">
-            {helperError}
-          </p>
         ) : null}
-        {page.latest ? (
-          sections.length ? (
-            sections.map((section, index) => (
-              <section key={section.id} className="pt-3">
-                {index > 0 ? <Separator className="mb-3" /> : null}
+        <Button variant="ghost" size="sm" type="button" onClick={onEdit}>
+          Edit credentials
+        </Button>
+        <Button
+          variant="ghost"
+          size="sm"
+          type="button"
+          className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+          onClick={() => setRemoveOpen(true)}
+        >
+          Remove site
+        </Button>
+      </div>
+
+      <ScanOperationBanner
+        operation={operation}
+        scanning={scanning}
+        historyReady={Boolean(page.username)}
+        onRetry={() => void startScan()}
+        retryBusy={scanBusy}
+      />
+
+      {helperError ? (
+        <p className="text-sm text-destructive" role="alert" aria-live="assertive">
+          {helperError}
+        </p>
+      ) : null}
+
+      {page.latest ? (
+        groups.needsAction.length || groups.informational.length ? (
+          <div>
+            {groups.needsAction.length ? (
+              <section>
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">
-                    {section.label}
-                    {sectionCount(section) != null ? (
-                      <span className="font-normal text-muted-foreground"> · {sectionCount(section)}</span>
-                    ) : null}
-                  </h3>
-                  {section.id === "updates" && canUpdate && updateFindings.length ? (
+                  <h3 className="text-sm font-medium">{COPY.row.needsAction}</h3>
+                  {canUpdate && updateItems.length ? (
                     <Button
                       variant="outline"
                       size="sm"
@@ -282,7 +299,7 @@ function SiteActionCenter({
                     </Button>
                   ) : null}
                 </div>
-                {section.items.map((item) => (
+                {groups.needsAction.map((item) => (
                   <FindingRow
                     key={item.id}
                     status={item.status}
@@ -293,26 +310,63 @@ function SiteActionCenter({
                     compact={item.compact}
                     showStatus={item.showStatus}
                     tone={item.tone}
-                    action={rowAction(item, helper, page.site.name, setConfirmJob, applyHelper, setBrokenLinks)}
+                    action={rowAction(item, helper, page.site.name, setConfirmJob, applyHelper)}
                   />
                 ))}
               </section>
-            ))
-          ) : (
-            <EmptyNote tone="positive">No action required on the last scan.</EmptyNote>
-          )
-        ) : scanning ? null : (
-          <p className="help pt-4">{overview.primaryLabel}.</p>
-        )}
-        <HelperHelp helper={helper} />
-        <Separator className="my-4" />
-        <section className="border-b border-border pb-3" aria-labelledby="scan-history-heading">
-          <h3 id="scan-history-heading" className="mb-2 text-sm font-medium">
-            Scan history
-          </h3>
+            ) : null}
+            {groups.informational.length ? (
+              <Collapsible open={infoOpen} onOpenChange={setInfoOpen} className={groups.needsAction.length ? "mt-3" : undefined}>
+                <CollapsibleTrigger className="group flex w-full cursor-pointer items-center justify-between gap-2 rounded-md py-1.5 text-left text-sm text-muted-foreground hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+                  <span>{COPY.row.informational(groups.informational.length)}</span>
+                  <ChevronDownIcon
+                    className="size-4 shrink-0 transition-transform duration-150 group-aria-expanded:rotate-180"
+                    aria-hidden
+                  />
+                </CollapsibleTrigger>
+                <CollapsibleContent>
+                  {groups.informational.map((item) => (
+                    <FindingRow
+                      key={item.id}
+                      status={item.status}
+                      statusLabel={item.statusLabel}
+                      title={item.title}
+                      explanation={item.explanation}
+                      detail={item.detail}
+                      compact={item.compact}
+                      showStatus={item.showStatus}
+                      tone={item.tone}
+                    />
+                  ))}
+                </CollapsibleContent>
+              </Collapsible>
+            ) : null}
+          </div>
+        ) : (
+          <EmptyNote tone="positive">{COPY.row.noAction}</EmptyNote>
+        )
+      ) : scanning ? null : (
+        <p className="text-sm text-muted-foreground">{COPY.row.notScannedYet}</p>
+      )}
+
+      <HelperHelp helper={helper} />
+
+      <Separator />
+      <Collapsible>
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md py-1.5 text-left text-sm font-medium hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          {COPY.row.scanHistory}
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pb-2">
           <ScanTimeline page={page} />
-        </section>
-        <SecondaryBlock title="Site configuration">
+        </CollapsibleContent>
+      </Collapsible>
+      <Collapsible>
+        <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md py-1.5 text-left text-sm font-medium hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
+          {COPY.row.siteConfiguration}
+          <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
+        </CollapsibleTrigger>
+        <CollapsibleContent className="pb-2">
           {plugins.length ? (
             plugins.map((plugin) => (
               <PluginRow
@@ -335,25 +389,9 @@ function SiteActionCenter({
           ) : (
             <EmptyNote>No plugin list yet. Scan with a working Application Password.</EmptyNote>
           )}
-        </SecondaryBlock>
-        <SecondaryBlock title="Settings">
-          <p className="mb-3 font-mono text-[13px] text-muted-foreground [overflow-wrap:anywhere]">
-            {page.site.origin}
-          </p>
-          {page.username ? (
-            <p className="mb-3 text-sm text-muted-foreground">Signed in as {page.username}</p>
-          ) : null}
-          <div className="flex flex-wrap gap-2">
-            <Button variant="outline" type="button" size="sm" onClick={onEdit}>
-              Edit credentials
-            </Button>
-            <Button variant="destructive" type="button" size="sm" onClick={() => setRemoveOpen(true)}>
-              Remove site
-            </Button>
-          </div>
-        </SecondaryBlock>
-      </div>
-      </div>
+        </CollapsibleContent>
+      </Collapsible>
+
       <AlertDialog open={removeOpen} onOpenChange={setRemoveOpen}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -369,7 +407,7 @@ function SiteActionCenter({
               onClick={() => {
                 void (async () => {
                   await api(`/api/sites/${page.site.id}`, { method: "DELETE" });
-                  onOpenChange(false);
+                  setRemoveOpen(false);
                   await onChanged();
                 })();
               }}
@@ -442,46 +480,7 @@ function SiteActionCenter({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
-      <Dialog open={Boolean(brokenLinks)} onOpenChange={(next) => !next && setBrokenLinks(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Broken links</DialogTitle>
-            <DialogDescription>Same-origin links from the homepage that did not return 200.</DialogDescription>
-          </DialogHeader>
-          <ul className="max-h-72 space-y-2 overflow-y-auto">
-            {(brokenLinks ?? []).map((link) => (
-              <li key={link.url ?? link.detail} className="text-sm [overflow-wrap:anywhere]">
-                <a href={link.url ?? link.detail} target="_blank" rel="noreferrer">
-                  {link.url ?? link.detail}
-                </a>
-                {link.httpStatus ? (
-                  <span className="ml-2 font-mono text-[12px] text-muted-foreground">{link.httpStatus}</span>
-                ) : null}
-              </li>
-            ))}
-          </ul>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
-
-function sectionCount(section: FindingSection): number | null {
-  if (section.id === "reliability" && section.items.every((item) => item.tone === "positive")) {
-    return null;
-  }
-  return section.items.length;
-}
-
-function SecondaryBlock({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <Collapsible className="border-b border-border py-1">
-      <CollapsibleTrigger className="flex w-full cursor-pointer items-center justify-between gap-2 rounded-md py-2 text-left text-sm font-medium hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none">
-        {title}
-        <ChevronDownIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden />
-      </CollapsibleTrigger>
-      <CollapsibleContent className="pb-3">{children}</CollapsibleContent>
-    </Collapsible>
+    </div>
   );
 }
 
@@ -534,14 +533,7 @@ function ScanOperationBanner({
         ) : (
           <span className="min-w-0" />
         )}
-        <Button
-          variant="outline"
-          size="xs"
-          type="button"
-          disabled={retryBusy}
-          aria-busy={retryBusy}
-          onClick={onRetry}
-        >
+        <Button variant="outline" size="xs" type="button" disabled={retryBusy} aria-busy={retryBusy} onClick={onRetry}>
           {retryBusy ? <Spinner size={12} /> : null}
           Retry
         </Button>
@@ -556,7 +548,7 @@ function ScanOperationBanner({
 function HelperHelp({ helper }: { helper: HelperInfo | null }) {
   if (!helper || helper.kind === "missing") {
     return (
-      <p className="help pt-4">
+      <p className="text-sm text-muted-foreground">
         Install the <a href="/api/helper-plugin">wwatch plugin</a> to open WP Admin, update, or fix findings from
         the board.
       </p>
@@ -564,7 +556,7 @@ function HelperHelp({ helper }: { helper: HelperInfo | null }) {
   }
   if (!helperCan(helper, "update")) {
     return (
-      <p className="help pt-4">
+      <p className="text-sm text-muted-foreground">
         This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update or
         fix findings from the board.
       </p>
@@ -572,7 +564,7 @@ function HelperHelp({ helper }: { helper: HelperInfo | null }) {
   }
   if (!helperCan(helper, "repair")) {
     return (
-      <p className="help pt-4">
+      <p className="text-sm text-muted-foreground">
         This plugin can log in and update. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to
         fix exposed files from the board.
       </p>
@@ -587,14 +579,9 @@ function rowAction(
   siteName: string,
   confirm: (job: ConfirmJob) => void,
   applyHelper: (path: string, body: unknown, failed: string) => Promise<void>,
-  onViewLinks: (links: Finding[]) => void,
 ): ReactNode {
-  if (item.findings.length > 1 && item.findings.every((finding) => finding.kind === "broken_link")) {
-    return (
-      <RowAction type="button" chevron onClick={() => onViewLinks(item.findings)}>
-        View links
-      </RowAction>
-    );
+  if (item.findings.length !== 1) {
+    return undefined;
   }
   const finding = item.findings[0];
   if (!finding) {
@@ -722,10 +709,7 @@ function PluginRow({
       <div className="min-w-0">
         <p className="[overflow-wrap:anywhere]">
           <strong>{plugin.name}</strong>{" "}
-          <Badge
-            variant="outline"
-            className="h-5 px-1.5 py-0 font-mono text-[11px] font-medium tracking-wide uppercase"
-          >
+          <Badge variant="outline" className="h-5 px-1.5 py-0 font-mono text-[11px] font-medium tracking-wide uppercase">
             {plugin.status}
           </Badge>
           {update ? (

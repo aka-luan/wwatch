@@ -93,14 +93,69 @@ test("orders each status group by name then id", () => {
   );
 });
 
+test("orders same-status sites by most recent activity first", () => {
+  const board = siteBoard([
+    row("a1", "Older", {
+      findings: [finding("plugin_update", "warn", "Akismet 1.0 → 1.1")],
+      rollup: "degraded",
+      latest: {
+        id: "c-old",
+        siteId: "a1",
+        startedAt: "2024-01-01T00:00:00.000Z",
+        finishedAt: "2024-01-01T00:00:00.000Z",
+        rollup: "degraded",
+        coreVersion: "6.7.1",
+        plugins: [],
+        findings: [finding("plugin_update", "warn", "Akismet 1.0 → 1.1")],
+        helper: null,
+      },
+    }),
+    row("a2", "Newer", {
+      findings: [finding("plugin_update", "warn", "Akismet 1.0 → 1.1")],
+      rollup: "degraded",
+      latest: {
+        id: "c-new",
+        siteId: "a2",
+        startedAt: "2024-06-01T00:00:00.000Z",
+        finishedAt: "2024-06-01T00:00:00.000Z",
+        rollup: "degraded",
+        coreVersion: "6.7.1",
+        plugins: [],
+        findings: [finding("plugin_update", "warn", "Akismet 1.0 → 1.1")],
+        helper: null,
+      },
+    }),
+  ]);
+  assert.deepEqual(
+    board.needsAttention.map((item) => item.row.site.id),
+    ["a2", "a1"],
+  );
+});
+
 test("compareBoardSites is deterministic for equal names", () => {
   const a = {
     row: row("b", "Client"),
-    overview: { status: "healthy" as const, primaryLabel: "", emphasizePrimary: false, extra: null, finishedAt: null, running: false },
+    overview: {
+      status: "healthy" as const,
+      primaryLabel: "",
+      emphasizePrimary: false,
+      extra: null,
+      finishedAt: null,
+      running: false,
+      staleLabel: null,
+    },
   };
   const b = {
     row: row("a", "Client"),
-    overview: { status: "healthy" as const, primaryLabel: "", emphasizePrimary: false, extra: null, finishedAt: null, running: false },
+    overview: {
+      status: "healthy" as const,
+      primaryLabel: "",
+      emphasizePrimary: false,
+      extra: null,
+      finishedAt: null,
+      running: false,
+      staleLabel: null,
+    },
   };
   assert.ok(compareBoardSites(a, b) > 0);
   assert.ok(compareBoardSites(b, a) < 0);

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
@@ -6,8 +6,7 @@ import { AddSiteDialog } from "@/components/add-site-dialog";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
-import { SiteSheet } from "@/components/site-sheet";
-import { UpdatesEntry, UpdatesReviewDialog } from "@/components/updates-review";
+import { SiteSummaryBar } from "@/components/site-summary-bar";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -21,7 +20,6 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-import { fleetUpdateSummary } from "@/lib/fleet-updates";
 import { emptyFilterState, filterSites, type SiteFilterState } from "@/lib/site-filters";
 import { finishedScanSites, isScanFailure, sitePageFromOverview } from "@/lib/scan-operation";
 import type { OverviewRow, SitePage } from "@/lib/types";
@@ -41,7 +39,6 @@ function Board() {
   const [page, setPage] = useState<SitePage | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [updatesOpen, setUpdatesOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
   const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
   const runningIdsRef = useRef<Set<string>>(new Set());
@@ -106,7 +103,6 @@ function Board() {
   const selectedPage = page && selected && page.site.id === selected ? page : null;
   const filteredSites = filterSites(sites, filters);
   const scanning = sites.filter((row) => row.running).length;
-  const updates = useMemo(() => fleetUpdateSummary(sites), [sites]);
 
   return (
     <div className="board">
@@ -162,22 +158,18 @@ function Board() {
       {loaded ? (
         sites.length > 0 ? (
           <div className="board-toolbar">
+            <SiteSummaryBar sites={sites} state={filters} onChange={setFilters} onChanged={refresh} />
             <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-            {updates.updateCount > 0 || scanning > 0 ? (
-              <div className="board-toolbar-meta">
-                <UpdatesEntry summary={updates} onReview={() => setUpdatesOpen(true)} />
-                {scanning > 0 ? (
-                  <ProcessingIndicator
-                    className="scanning-note"
-                    label={
-                      <>
-                        <span className="font-medium text-foreground">{scanning}</span> scanning
-                      </>
-                    }
-                    size={12}
-                  />
-                ) : null}
-              </div>
+            {scanning > 0 ? (
+              <ProcessingIndicator
+                className="scanning-note"
+                label={
+                  <>
+                    <span className="font-medium text-foreground">{scanning}</span> scanning
+                  </>
+                }
+                size={12}
+              />
             ) : null}
           </div>
         ) : null
@@ -202,36 +194,22 @@ function Board() {
           filters={filters}
           onClearFilters={() => setFilters(emptyFilterState())}
           loaded={loaded}
-          onOpen={(id) => {
-            if (id !== selected) {
-              const row = sites.find((item) => item.site.id === id);
-              setPage(row ? sitePageFromOverview(row, page) : null);
-            }
-            setSelected(id);
-          }}
-        />
-      </main>
-      <SiteSheet
-        open={selected !== null}
-        page={selectedPage}
-        onOpenChange={(open) => {
-          if (!open) {
-            if (addOpen || editOpen) {
+          selectedId={selected}
+          selectedPage={selectedPage}
+          onToggle={(id) => {
+            if (id === selected) {
+              setSelected(null);
+              setPage(null);
               return;
             }
-            setSelected(null);
-            setPage(null);
-          }
-        }}
-        onEdit={() => setEditOpen(true)}
-        onChanged={refresh}
-      />
-      <UpdatesReviewDialog
-        open={updatesOpen}
-        onOpenChange={setUpdatesOpen}
-        sites={sites}
-        onChanged={refresh}
-      />
+            const row = sites.find((item) => item.site.id === id);
+            setPage(row ? sitePageFromOverview(row, page) : null);
+            setSelected(id);
+          }}
+          onEdit={() => setEditOpen(true)}
+          onChanged={refresh}
+        />
+      </main>
       <AddSiteDialog
         open={addOpen}
         onOpenChange={setAddOpen}
