@@ -11,7 +11,7 @@ const CSP = [
   "script-src 'self'",
   "style-src 'self'",
   "style-src-attr 'unsafe-inline'",
-  "img-src 'self'",
+  "img-src 'self' data:",
   "connect-src 'self'",
   "font-src 'self'",
   "object-src 'none'",

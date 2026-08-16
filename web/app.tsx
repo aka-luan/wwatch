@@ -7,6 +7,7 @@ import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
 import { SiteList } from "@/components/site-list";
 import { SiteSummaryBar } from "@/components/site-summary-bar";
+import { ThemeToggle } from "@/components/theme-toggle";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -108,7 +109,10 @@ function Board() {
     <div className="board">
       <header className="top">
         <div>
-          <p className="mark">wwatch</p>
+          <p className="mark">
+            <span className="mark-dot" aria-hidden />
+            wwatch
+          </p>
           <p className="sub">WordPress fleet</p>
         </div>
         <div className="actions">
@@ -140,6 +144,7 @@ function Board() {
               Add site
             </Button>
           </div>
+          <ThemeToggle />
           <Button
             variant="ghost"
             type="button"
