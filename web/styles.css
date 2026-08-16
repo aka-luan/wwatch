@@ -477,6 +477,10 @@ a {
   }
 }
 
+[data-slot="finding-row"] [data-slot="button"] {
+  min-height: 28px;
+}
+
 .dark {
   --background: #0e1114;
   --foreground: #e6edf3;
