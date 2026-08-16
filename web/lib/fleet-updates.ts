@@ -12,6 +12,8 @@ export type FleetUpdateItem = {
   kind: UpdateKind;
   title: string;
   detail?: string;
+  installed?: string;
+  latest?: string;
   plugin?: string;
   theme?: string;
 };
@@ -67,6 +69,7 @@ export function fleetUpdateItemFromFinding(siteId: string, siteName: string, fin
     return null;
   }
   const copy = findingDisplayCopy(finding);
+  const versions = versionPair(finding, copy.detail);
   return {
     key,
     siteId,
@@ -74,9 +77,29 @@ export function fleetUpdateItemFromFinding(siteId: string, siteName: string, fin
     kind,
     title: kind === "core" ? "WordPress" : copy.title,
     detail: copy.detail,
+    installed: versions?.installed,
+    latest: versions?.latest,
     plugin: finding.plugin,
     theme: finding.theme,
   };
+}
+
+/** Prefer structured finding fields, then a `installed → latest` detail string. */
+export function versionPair(
+  finding: Pick<Finding, "installed" | "latest">,
+  detail?: string,
+): { installed: string; latest: string } | null {
+  if (finding.installed && finding.latest) {
+    return { installed: finding.installed, latest: finding.latest };
+  }
+  if (!detail) {
+    return null;
+  }
+  const match = /^(\S+)\s+→\s+(\S+)$/.exec(detail.trim());
+  if (!match?.[1] || !match[2]) {
+    return null;
+  }
+  return { installed: match[1], latest: match[2] };
 }
 
 export function fleetUpdateSummary(sites: readonly OverviewRow[]): FleetUpdateSummary {

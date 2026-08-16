@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { CheckIcon, ChevronRightIcon, XIcon } from "lucide-react";
+import { CheckIcon, XIcon } from "lucide-react";
 import { toast } from "sonner";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import {
@@ -20,7 +20,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
 import { api } from "@/lib/api";
 import {
   fleetUpdateSummary,
@@ -133,27 +132,32 @@ export function UpdatesReviewDialog({
     }
   }
 
+  const summaryLine =
+    live.updateCount === 0
+      ? "No pending updates from the latest scans."
+      : `${live.updateCount} update${live.updateCount === 1 ? "" : "s"} across ${live.siteCount} site${live.siteCount === 1 ? "" : "s"}`;
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="flex max-h-[min(40rem,90vh)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
-          <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-4 pr-12 text-left">
+        <DialogContent
+          className={cn(
+            "flex max-h-[min(36rem,85dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0",
+            "sm:max-w-lg",
+          )}
+        >
+          <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-3 pr-12 text-left">
             <DialogTitle>Updates</DialogTitle>
-            <DialogDescription>
-              {live.updateCount === 0
-                ? "No pending updates from the latest scans."
-                : `${live.updateCount} update${live.updateCount === 1 ? "" : "s"} across ${live.siteCount} site${live.siteCount === 1 ? "" : "s"}.`}
-            </DialogDescription>
+            <DialogDescription>{summaryLine}</DialogDescription>
           </DialogHeader>
-          <div className="min-h-0 flex-1 overflow-y-auto px-4 pb-4">
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-2">
             {groups.length === 0 ? (
-              <p className="py-6 text-sm text-muted-foreground">Nothing left to review.</p>
+              <p className="py-5 text-sm text-muted-foreground">Nothing left to review.</p>
             ) : (
-              groups.map((group, index) => (
+              groups.map((group) => (
                 <SiteUpdateGroup
                   key={group.siteId}
                   group={group}
-                  showSeparator={index > 0}
                   itemStates={itemStates}
                   onConfirm={setConfirmJob}
                   onUpdateItem={(item) => {
@@ -201,14 +205,12 @@ export function UpdatesReviewDialog({
 
 function SiteUpdateGroup({
   group,
-  showSeparator,
   itemStates,
   onConfirm,
   onUpdateItem,
   onUpdatePluginsThemes,
 }: {
   group: ReviewSiteGroup;
-  showSeparator: boolean;
   itemStates: Record<string, ItemState>;
   onConfirm: (job: ConfirmJob) => void;
   onUpdateItem: (item: FleetUpdateItem) => void;
@@ -224,15 +226,17 @@ function SiteUpdateGroup({
   const actionsEnabled = group.canUpdate && !group.running && !siteBusy;
 
   return (
-    <section className="pt-4">
-      {showSeparator ? <Separator className="mb-4" /> : null}
-      <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-medium [overflow-wrap:anywhere]">{group.siteName}</h3>
+    <section className="border-b border-border py-3 last:border-b-0">
+      <div className="mb-1.5 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <h3 className="text-[13px] font-semibold tracking-tight text-foreground [overflow-wrap:anywhere]">
+          {group.siteName}
+        </h3>
         {group.canUpdate && pluginThemeItems.length > 0 ? (
           <Button
-            variant="outline"
-            size="sm"
+            variant="ghost"
+            size="xs"
             type="button"
+            className="h-6 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
             disabled={!actionsEnabled}
             onClick={() =>
               onConfirm({
@@ -244,18 +248,18 @@ function SiteUpdateGroup({
               })
             }
           >
-            Update plugins & themes
+            Update all
           </Button>
         ) : null}
       </div>
       {!group.canUpdate ? (
-        <p className="mb-2 text-[13px] leading-5 text-muted-foreground">
+        <p className="mb-1.5 text-[12px] leading-4 text-muted-foreground">
           {group.helperMissing
             ? "Install the wwatch plugin to update from the board."
             : "This plugin build cannot update from the board."}
         </p>
       ) : group.running ? (
-        <p className="mb-2 text-[13px] leading-5 text-muted-foreground">
+        <p className="mb-1.5 text-[12px] leading-4 text-muted-foreground">
           Scan in progress. Wait before updating.
         </p>
       ) : null}
@@ -292,10 +296,22 @@ function UpdateItemRow({
   onUpdate: () => void;
 }) {
   const label = item.kind === "core" ? "WordPress" : item.title;
+  const versions =
+    item.installed && item.latest ? (
+      <span className="font-mono text-[12px] leading-4 tabular-nums text-muted-foreground whitespace-nowrap">
+        <span className="text-muted-foreground/80">{item.installed}</span>
+        <span className="mx-1 text-muted-foreground/50">→</span>
+        <span className="text-foreground/80">{item.latest}</span>
+      </span>
+    ) : item.detail ? (
+      <span className="font-mono text-[12px] leading-4 tabular-nums text-muted-foreground whitespace-nowrap">
+        {item.detail}
+      </span>
+    ) : null;
 
   if (phase === "updating") {
     return (
-      <li className="border-t border-border py-2.5">
+      <li className="py-1.5">
         <ProcessingIndicator label={`Updating ${label}…`} size={12} />
       </li>
     );
@@ -303,9 +319,9 @@ function UpdateItemRow({
 
   if (phase === "success") {
     return (
-      <li className="flex items-start gap-2 border-t border-border py-2.5 text-[13px] leading-5 text-muted-foreground">
-        <CheckIcon className="mt-0.5 size-3.5 shrink-0 text-success" aria-hidden />
-        <span className="min-w-0 [overflow-wrap:anywhere]">
+      <li className="flex items-center gap-1.5 py-1.5 text-[13px] leading-4 text-muted-foreground">
+        <CheckIcon className="size-3.5 shrink-0 text-success" aria-hidden />
+        <span className="min-w-0 truncate">
           <span className="text-foreground">{label}</span> updated
         </span>
       </li>
@@ -314,8 +330,8 @@ function UpdateItemRow({
 
   if (phase === "failed") {
     return (
-      <li className="flex flex-col gap-1 border-t border-border py-2.5 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
-        <div className="flex min-w-0 items-start gap-2 text-[13px] leading-5">
+      <li className="flex items-start justify-between gap-2 py-1.5">
+        <div className="flex min-w-0 items-start gap-1.5 text-[13px] leading-4">
           <XIcon className="mt-0.5 size-3.5 shrink-0 text-destructive" aria-hidden />
           <div className="min-w-0">
             <p className="text-foreground [overflow-wrap:anywhere]">{label} failed</p>
@@ -326,9 +342,9 @@ function UpdateItemRow({
         </div>
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           type="button"
-          className="h-7 self-end px-2 text-muted-foreground hover:text-foreground"
+          className="h-6 shrink-0 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
           disabled={!actionsEnabled}
           onClick={onUpdate}
         >
@@ -339,24 +355,17 @@ function UpdateItemRow({
   }
 
   return (
-    <li
-      className={cn(
-        "flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30",
-        "sm:flex-row sm:items-start sm:justify-between sm:gap-3",
-      )}
-    >
-      <div className="min-w-0">
-        <p className="text-sm font-medium leading-5 [overflow-wrap:anywhere]">{label}</p>
-        {item.detail ? (
-          <p className="mt-0.5 font-mono text-[12px] leading-4 text-muted-foreground">{item.detail}</p>
-        ) : null}
+    <li className="group/row flex items-baseline justify-between gap-2 py-1.5">
+      <div className="grid min-w-0 flex-1 grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-3">
+        <span className="truncate text-[13px] leading-4 text-foreground">{label}</span>
+        {versions}
       </div>
       {actionsEnabled ? (
         <Button
           variant="ghost"
-          size="sm"
+          size="xs"
           type="button"
-          className="h-7 gap-1 self-end px-2 text-muted-foreground hover:text-foreground"
+          className="h-6 shrink-0 px-1.5 text-[12px] text-muted-foreground opacity-80 hover:text-foreground group-hover/row:opacity-100"
           onClick={() =>
             onConfirm({
               title: item.kind === "core" ? `Update WordPress on ${item.siteName}?` : `Update ${label}?`,
@@ -370,7 +379,6 @@ function UpdateItemRow({
           }
         >
           Update
-          <ChevronRightIcon className="size-4" aria-hidden />
         </Button>
       ) : null}
     </li>

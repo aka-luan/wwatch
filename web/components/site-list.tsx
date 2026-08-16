@@ -213,7 +213,9 @@ function SiteRow({
   return (
     <button
       type="button"
-      aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${copy.finding ?? copy.meta}`}
+      aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${
+        operation.kind === "running" ? "scanning, " : ""
+      }${copy.finding ?? copy.meta}`}
       className={rowButtonClass(density)}
       aria-busy={operation.kind === "running"}
       onClick={() => onOpen(row.site.id)}
