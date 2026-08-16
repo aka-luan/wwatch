@@ -126,8 +126,8 @@ The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live i
 
 - `StatusBadge` / `StatusDot` for site and finding status (`critical`, `attention`, `healthy`, `unknown`)
 - `SiteList` groups the fleet into Needs attention (critical, attention, unknown) and Healthy rows
-- `FindingRow` for operational finding lines
-- `SiteSheet` for the site action center (shadcn `Sheet`)
+- `FindingRow` for compact operator finding lines (actionable, updates, info, healthy checks)
+- `SiteSheet` for the site action center (shadcn `Sheet`), with a sticky header and attention-first sections
 - Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`)
 
 Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin or remove-site actions with `AlertDialog`. Site details use `Sheet`. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.

@@ -36,7 +36,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-import { siteFindingSections, type DisplayFinding } from "@/lib/finding-groups";
+import { siteFindingSections, type DisplayFinding, type FindingSection } from "@/lib/finding-groups";
 import { agoWords, formatScanWhen, host } from "@/lib/format";
 import { helperCan, isRepairablePath } from "@/lib/helper";
 import { scanningLabel, scanOperationOf, type ScanOperationState } from "@/lib/scan-operation";
@@ -68,7 +68,7 @@ export function SiteSheet({
     <Sheet open={open} onOpenChange={onOpenChange}>
         <SheetContent
           side="right"
-          className="h-full w-full! gap-0 overflow-hidden p-0 data-[side=right]:w-full! data-[side=right]:max-w-none sm:data-[side=right]:max-w-lg"
+          className="h-full w-full! gap-0 overflow-hidden p-0 data-[side=right]:w-full! data-[side=right]:max-w-none sm:w-[34rem]! sm:data-[side=right]:w-[34rem]! sm:data-[side=right]:max-w-[34rem]!"
         >
         {page ? (
           <SiteActionCenter page={page} onOpenChange={onOpenChange} onEdit={onEdit} onChanged={onChanged} />
@@ -129,12 +129,12 @@ function SiteActionCenter({
     setScanBusy(false);
   }, [page.site.id]);
 
-  async function startScan(successToast = "Scan started") {
+  async function startScan() {
     setHelperError("");
     setScanBusy(true);
     try {
       await api(`/api/sites/${page.site.id}/scan`, { method: "POST" });
-      toast.success(successToast);
+      toast.message("Scan started");
       await onChanged();
     } catch (error) {
       const text = error instanceof Error ? error.message : "Could not start scan";
@@ -165,9 +165,9 @@ function SiteActionCenter({
   return (
     <>
       <div className="flex h-full min-h-0 flex-col">
-      <SheetHeader className="shrink-0 space-y-3 border-b border-border pr-12 pt-[max(1rem,env(safe-area-inset-top))] pl-[max(1rem,env(safe-area-inset-left))]">
+      <SheetHeader className="sticky top-0 z-10 shrink-0 space-y-3 border-b border-border bg-popover pr-12 pt-[max(1rem,env(safe-area-inset-top))] pb-3 pl-[max(1rem,env(safe-area-inset-left))]">
         <div className="min-w-0">
-          <SheetTitle className="text-lg [overflow-wrap:anywhere]">{page.site.name}</SheetTitle>
+          <SheetTitle className="text-base font-semibold [overflow-wrap:anywhere]">{page.site.name}</SheetTitle>
           <SheetDescription className="font-mono text-[13px] [overflow-wrap:anywhere]">
             {host(page.site.origin)}
           </SheetDescription>
@@ -178,15 +178,6 @@ function SiteActionCenter({
             <span className="text-[13px] text-muted-foreground">WP {page.latest.coreVersion}</span>
           ) : null}
         </div>
-        <ScanOperationBanner
-          operation={operation}
-          scanning={scanning}
-          historyReady={Boolean(page.username)}
-          onRetry={() => {
-            void startScan("Scan started");
-          }}
-          retryBusy={scanBusy}
-        />
         <div className="flex flex-wrap gap-2">
           <Button
             variant="outline"
@@ -197,9 +188,21 @@ function SiteActionCenter({
             <ExternalLinkIcon />
             Open site
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={scanning}
+            aria-busy={scanning}
+            onClick={() => {
+              void startScan();
+            }}
+          >
+            {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
+            {scanning ? "Scanning…" : "Scan now"}
+          </Button>
           {canLogin ? (
             <Button
-              variant="outline"
+              variant="ghost"
               size="sm"
               disabled={loginBusy}
               aria-busy={loginBusy}
@@ -231,34 +234,36 @@ function SiteActionCenter({
               WP Admin
             </Button>
           ) : null}
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={scanning}
-            aria-busy={scanning}
-            onClick={() => {
-              void startScan();
-            }}
-          >
-            {scanning ? <Spinner size={14} /> : <RefreshCwIcon />}
-            {scanning ? "Scanning…" : "Scan now"}
-          </Button>
+
         </div>
+        <ScanOperationBanner
+          operation={operation}
+          scanning={scanning}
+          historyReady={Boolean(page.username)}
+          onRetry={() => {
+            void startScan();
+          }}
+          retryBusy={scanBusy}
+        />
       </SheetHeader>
       <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-4 pb-[max(2rem,env(safe-area-inset-bottom))]">
-        <HelperHelp helper={helper} />
         {helperError ? (
-          <p className="error" role="alert" aria-live="assertive">
+          <p className="error pt-3" role="alert" aria-live="assertive">
             {helperError}
           </p>
         ) : null}
         {page.latest ? (
           sections.length ? (
             sections.map((section, index) => (
-              <section key={section.id} className="pt-4">
-                {index > 0 ? <Separator className="mb-4" /> : null}
+              <section key={section.id} className="pt-3">
+                {index > 0 ? <Separator className="mb-3" /> : null}
                 <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
-                  <h3 className="text-sm font-medium">{section.label}</h3>
+                  <h3 className="text-sm font-medium">
+                    {section.label}
+                    {sectionCount(section) != null ? (
+                      <span className="font-normal text-muted-foreground"> · {sectionCount(section)}</span>
+                    ) : null}
+                  </h3>
                   {section.id === "updates" && canUpdate && updateFindings.length ? (
                     <Button
                       variant="outline"
@@ -283,9 +288,11 @@ function SiteActionCenter({
                     status={item.status}
                     statusLabel={item.statusLabel}
                     title={item.title}
+                    explanation={item.explanation}
                     detail={item.detail}
                     compact={item.compact}
                     showStatus={item.showStatus}
+                    tone={item.tone}
                     action={rowAction(item, helper, page.site.name, setConfirmJob, applyHelper, setBrokenLinks)}
                   />
                 ))}
@@ -297,6 +304,7 @@ function SiteActionCenter({
         ) : scanning ? null : (
           <p className="help pt-4">{overview.primaryLabel}.</p>
         )}
+        <HelperHelp helper={helper} />
         <Separator className="my-4" />
         <section className="border-b border-border pb-3" aria-labelledby="scan-history-heading">
           <h3 id="scan-history-heading" className="mb-2 text-sm font-medium">
@@ -458,6 +466,13 @@ function SiteActionCenter({
   );
 }
 
+function sectionCount(section: FindingSection): number | null {
+  if (section.id === "reliability" && section.items.every((item) => item.tone === "positive")) {
+    return null;
+  }
+  return section.items.length;
+}
+
 function SecondaryBlock({ title, children }: { title: string; children: ReactNode }) {
   return (
     <Collapsible className="border-b border-border py-1">
@@ -493,7 +508,9 @@ function ScanOperationBanner({
           <p className="text-[13px] leading-5 text-muted-foreground">
             Showing results from {formatScanWhen(showingFrom)}
           </p>
-        ) : null}
+        ) : (
+          <p className="text-[13px] leading-5 text-muted-foreground">Waiting for the first result.</p>
+        )}
       </div>
     );
   }
@@ -561,7 +578,7 @@ function HelperHelp({ helper }: { helper: HelperInfo | null }) {
       </p>
     );
   }
-  return <p className="help pt-4">WP Admin opens wp-admin. Update and Fix use the wwatch plugin on this site.</p>;
+  return null;
 }
 
 function rowAction(

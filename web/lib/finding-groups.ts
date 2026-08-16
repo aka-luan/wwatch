@@ -6,12 +6,19 @@ export const FINDING_GROUPS = ["security", "updates", "reliability", "wordpress"
 
 export type FindingGroupId = (typeof FINDING_GROUPS)[number];
 
-export const FINDING_GROUP_LABEL: Record<FindingGroupId, string> = {
-  security: "Security",
+export const DISPLAY_SECTIONS = ["attention", "updates", "reliability", "security", "wordpress"] as const;
+
+export type DisplaySectionId = (typeof DISPLAY_SECTIONS)[number];
+
+export const DISPLAY_SECTION_LABEL: Record<DisplaySectionId, string> = {
+  attention: "Needs attention",
   updates: "Updates",
   reliability: "Reliability",
+  security: "Security",
   wordpress: "WordPress",
 };
+
+export type FindingTone = "actionable" | "update" | "info" | "positive";
 
 const GROUP_BY_KIND: Record<string, FindingGroupId> = {
   exposed_path: "security",
@@ -46,14 +53,16 @@ export type DisplayFinding = {
   status: SiteStatus;
   statusLabel?: string;
   title: string;
+  explanation?: string;
   detail?: string;
   compact: boolean;
   showStatus: boolean;
+  tone: FindingTone;
   findings: Finding[];
 };
 
 export type FindingSection = {
-  id: FindingGroupId;
+  id: DisplaySectionId;
   label: string;
   items: DisplayFinding[];
 };
@@ -62,18 +71,38 @@ export function groupIdForFinding(finding: Finding): FindingGroupId {
   return GROUP_BY_KIND[finding.kind] ?? "wordpress";
 }
 
-export function findingDisplayCopy(finding: Finding): { title: string; detail?: string } {
+export function sectionIdForFinding(finding: Finding): DisplaySectionId {
+  if (isUpdateFinding(finding)) {
+    return "updates";
+  }
+  if (isActionableFinding(finding)) {
+    return "attention";
+  }
+  const group = groupIdForFinding(finding);
+  if (group === "updates") {
+    return "updates";
+  }
+  return group;
+}
+
+export function findingDisplayCopy(finding: Finding): {
+  title: string;
+  explanation?: string;
+  detail?: string;
+} {
   if (isUpdateFinding(finding)) {
     return updateCopy(finding);
   }
   if (finding.kind === "exposed_path") {
-    return { title: finding.title, detail: exposedPathDetail(finding) };
+    const explanation = exposedPathDetail(finding);
+    const diagnostic = diagnosticDetail(finding, explanation);
+    return { title: finding.title, explanation, ...(diagnostic ? { detail: diagnostic } : {}) };
   }
   if (finding.kind === "broken_link") {
-    return { title: finding.title, detail: finding.url ?? finding.detail };
+    return { title: finding.title, explanation: finding.url ?? finding.detail };
   }
-  const detail = finding.detail && finding.detail !== finding.title ? finding.detail : undefined;
-  return { title: finding.title, detail };
+  const explanation = finding.detail && finding.detail !== finding.title ? finding.detail : undefined;
+  return { title: finding.title, ...(explanation ? { explanation } : {}) };
 }
 
 export function siteFindingSections({
@@ -85,10 +114,11 @@ export function siteFindingSections({
   findings: readonly Finding[];
   scanned: boolean;
 }): FindingSection[] {
-  const buckets: Record<FindingGroupId, DisplayFinding[]> = {
-    security: [],
+  const buckets: Record<DisplaySectionId, DisplayFinding[]> = {
+    attention: [],
     updates: [],
     reliability: [],
+    security: [],
     wordpress: [],
   };
 
@@ -98,34 +128,37 @@ export function siteFindingSections({
       broken.push(finding);
       continue;
     }
-    buckets[groupIdForFinding(finding)].push(toDisplayFinding(finding));
+    buckets[sectionIdForFinding(finding)].push(toDisplayFinding(finding));
   }
   if (broken.length) {
-    buckets.reliability.push(collapsedBrokenLinks(broken));
+    buckets.attention.push(collapsedBrokenLinks(broken));
   }
   if (scanned) {
     buckets.reliability.push(...reliabilityHealth(origin, findings));
   }
 
-  return FINDING_GROUPS.flatMap((id) => {
+  return DISPLAY_SECTIONS.flatMap((id) => {
     const items = dedupeDisplayFindings([...buckets[id]].sort(compareDisplayFindings));
     if (!items.length) {
       return [];
     }
-    return [{ id, label: FINDING_GROUP_LABEL[id], items }];
+    return [{ id, label: DISPLAY_SECTION_LABEL[id], items }];
   });
 }
 
 function toDisplayFinding(finding: Finding): DisplayFinding {
   const copy = findingDisplayCopy(finding);
+  const tone = toneOf(finding);
   return {
     id: `${finding.kind}:${finding.title}:${finding.detail}:${finding.path ?? finding.plugin ?? finding.theme ?? finding.url ?? ""}`,
     status: siteStatusFromSeverity(finding.severity),
     statusLabel: severityLabel(finding.severity),
     title: copy.title,
+    explanation: copy.explanation,
     detail: copy.detail,
-    compact: false,
-    showStatus: !isUpdateFinding(finding) || finding.severity === "crit",
+    compact: tone === "positive" || tone === "info",
+    showStatus: tone === "actionable",
+    tone,
     findings: [finding],
   };
 }
@@ -140,9 +173,11 @@ function collapsedBrokenLinks(links: Finding[]): DisplayFinding {
       status: siteStatusFromSeverity(first.severity),
       statusLabel: severityLabel(first.severity),
       title: copy.title,
+      explanation: copy.explanation,
       detail: copy.detail,
       compact: false,
       showStatus: true,
+      tone: "actionable",
       findings: sorted,
     };
   }
@@ -153,6 +188,7 @@ function collapsedBrokenLinks(links: Finding[]): DisplayFinding {
     title: `${links.length} broken links`,
     compact: false,
     showStatus: true,
+    tone: "actionable",
     findings: sorted,
   };
 }
@@ -167,6 +203,7 @@ function reliabilityHealth(origin: string, findings: readonly Finding[]): Displa
       title: "Site reachable",
       compact: true,
       showStatus: false,
+      tone: "positive",
       findings: [],
     });
   }
@@ -177,6 +214,7 @@ function reliabilityHealth(origin: string, findings: readonly Finding[]): Displa
       title: "TLS valid",
       compact: true,
       showStatus: false,
+      tone: "positive",
       findings: [],
     });
   }
@@ -218,6 +256,24 @@ function exposedPathDetail(finding: Finding): string {
   return finding.detail;
 }
 
+function diagnosticDetail(finding: Finding, explanation: string | undefined): string | undefined {
+  const raw = finding.detail?.trim();
+  if (!raw || raw === finding.title || raw === explanation) {
+    return undefined;
+  }
+  return raw;
+}
+
+function toneOf(finding: Finding): FindingTone {
+  if (isUpdateFinding(finding)) {
+    return "update";
+  }
+  if (isActionableFinding(finding)) {
+    return "actionable";
+  }
+  return "info";
+}
+
 function compareDisplayFindings(a: DisplayFinding, b: DisplayFinding): number {
   if (a.compact !== b.compact) {
     return a.compact ? 1 : -1;
@@ -234,7 +290,12 @@ function dedupeDisplayFindings(items: DisplayFinding[]): DisplayFinding[] {
   const seen = new Set<string>();
   const out: DisplayFinding[] = [];
   for (const item of items) {
-    if (item.compact || item.findings.some((finding) => isUpdateFinding(finding) || finding.kind === "broken_link" || finding.kind === "exposed_path")) {
+    if (
+      item.compact ||
+      item.findings.some(
+        (finding) => isUpdateFinding(finding) || finding.kind === "broken_link" || finding.kind === "exposed_path",
+      )
+    ) {
       out.push(item);
       continue;
     }

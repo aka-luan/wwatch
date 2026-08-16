@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
@@ -23,7 +23,7 @@ import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
 import { fleetUpdateSummary } from "@/lib/fleet-updates";
 import { emptyFilterState, filterSites, type SiteFilterState } from "@/lib/site-filters";
-import { sitePageFromOverview } from "@/lib/scan-operation";
+import { finishedScanSites, isScanFailure, sitePageFromOverview } from "@/lib/scan-operation";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
 export function App() {
@@ -44,6 +44,8 @@ function Board() {
   const [updatesOpen, setUpdatesOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
   const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
+  const runningIdsRef = useRef<Set<string>>(new Set());
+  const runningSeenRef = useRef(false);
 
   async function refresh() {
     const rows = await api<OverviewRow[]>("/api/sites");
@@ -70,6 +72,37 @@ function Board() {
     return () => clearInterval(timer);
   }, [selected]);
 
+  useEffect(() => {
+    const nextRunning = new Set(sites.filter((row) => row.running).map((row) => row.site.id));
+    if (runningSeenRef.current) {
+      const finished = finishedScanSites(runningIdsRef.current, sites);
+      if (finished.length === 1) {
+        const row = finished[0];
+        if (row) {
+          if (isScanFailure(row.latest)) {
+            toast.error(`${row.site.name}: scan failed`);
+          } else {
+            toast.success(`${row.site.name}: scan finished`);
+          }
+        }
+      } else if (finished.length > 1) {
+        const failed = finished.filter((row) => isScanFailure(row.latest)).length;
+        if (failed === finished.length) {
+          toast.error(`${failed} scans failed`);
+        } else if (failed > 0) {
+          toast.message(`${finished.length} scans finished`, {
+            description: `${failed} failed`,
+          });
+        } else {
+          toast.success(`${finished.length} scans finished`);
+        }
+      }
+    } else if (sites.length > 0 || loaded) {
+      runningSeenRef.current = true;
+    }
+    runningIdsRef.current = nextRunning;
+  }, [sites, loaded]);
+
   const selectedPage = page && selected && page.site.id === selected ? page : null;
   const filteredSites = filterSites(sites, filters);
   const scanning = sites.filter((row) => row.running).length;
@@ -94,7 +127,7 @@ function Board() {
                   setScanAllBusy(true);
                   try {
                     await api("/api/scan-all", { method: "POST" });
-                    toast.success("Scan started");
+                    toast.message("Scanning all sites");
                     await refresh();
                   } catch (error) {
                     toast.error(error instanceof Error ? error.message : "Could not start scans");
