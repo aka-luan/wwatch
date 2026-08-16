@@ -29,8 +29,6 @@ import {
   type FleetUpdateSummary,
 } from "@/lib/fleet-updates";
 import type { OverviewRow } from "@/lib/types";
-import { cn } from "@/lib/utils";
-
 type ItemPhase = "pending" | "updating" | "success" | "failed";
 
 type ItemState = {
@@ -58,8 +56,14 @@ export function UpdatesEntry({
   }
   const updatesLabel = summary.updateCount === 1 ? "update" : "updates";
   const sitesLabel = summary.siteCount === 1 ? "site" : "sites";
+  const summaryText = `${summary.updateCount} ${updatesLabel} available across ${summary.siteCount} ${sitesLabel}`;
   return (
-    <button type="button" className="updates-entry" onClick={onReview}>
+    <button
+      type="button"
+      className="updates-entry"
+      aria-label={`Review updates: ${summaryText}`}
+      onClick={onReview}
+    >
       <span>
         <b>{summary.updateCount}</b> {updatesLabel} available across <b>{summary.siteCount}</b>{" "}
         {sitesLabel}
@@ -140,13 +144,8 @@ export function UpdatesReviewDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent
-          className={cn(
-            "flex max-h-[min(36rem,85dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0",
-            "sm:max-w-lg",
-          )}
-        >
-          <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-3 pr-12 text-left">
+        <DialogContent className="flex max-h-[min(40rem,90dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-lg">
+          <DialogHeader className="shrink-0 space-y-1 border-b border-border px-4 py-4 pr-12 text-left">
             <DialogTitle>Updates</DialogTitle>
             <DialogDescription>{summaryLine}</DialogDescription>
           </DialogHeader>
@@ -341,10 +340,10 @@ function UpdateItemRow({
           </div>
         </div>
         <Button
-          variant="ghost"
+          variant="outline"
           size="xs"
           type="button"
-          className="h-6 shrink-0 px-1.5 text-[12px] text-muted-foreground hover:text-foreground"
+          className="self-end"
           disabled={!actionsEnabled}
           onClick={onUpdate}
         >

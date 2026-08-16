@@ -81,15 +81,6 @@
   --input: #2a3138;
   --ring: #6cb6ff;
   --radius: 0.375rem;
-  --bg: var(--background);
-  --panel: var(--card);
-  --line: var(--border);
-  --text: var(--foreground);
-  --ok: var(--success);
-  --warn: var(--warning);
-  --crit: var(--destructive);
-  --run: var(--ring);
-  --never: #6e7681;
   --gutter: 32px;
   --board-max: 70rem;
   --chart-1: #6cb6ff;
@@ -128,10 +119,6 @@ body {
 #root {
   min-height: 100%;
   min-height: 100dvh;
-}
-
-body.modal-open {
-  overflow: hidden;
 }
 
 .board {
@@ -210,13 +197,7 @@ body.modal-open {
 
 .scanning-note {
   margin: 0;
-  color: var(--muted-foreground);
   font-size: 12px;
-}
-
-.scanning-note b {
-  color: var(--foreground);
-  font-weight: 500;
 }
 
 .updates-entry {
@@ -257,7 +238,7 @@ body.modal-open {
 .updates-entry:focus-visible {
   outline: 2px solid var(--ring);
   outline-offset: 3px;
-  border-radius: 4px;
+  border-radius: var(--radius);
 }
 
 .wwatch-spinner {
@@ -315,21 +296,6 @@ body.modal-open {
   font-weight: 600;
 }
 
-.link-button {
-  border: 0;
-  background: transparent;
-  padding: 0;
-  color: var(--ring);
-  font: inherit;
-  cursor: pointer;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
-.link-button:hover {
-  color: var(--foreground);
-}
-
 .site-list {
   margin: 6px max(var(--gutter), env(safe-area-inset-right)) 48px max(var(--gutter), env(safe-area-inset-left));
 }
@@ -373,7 +339,7 @@ body.modal-open {
   width: min(440px, 100%);
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: calc(var(--radius) * 1.5);
   padding: 20px;
 }
 

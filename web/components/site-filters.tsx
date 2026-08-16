@@ -155,7 +155,8 @@ function StatusFilterChip({
         />
       }
       className={cn(
-        "h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2.5 text-xs font-medium",
+        "h-7 min-h-7 shrink-0 cursor-pointer gap-1.5 rounded-md px-2.5 text-xs font-medium",
+        "focus-visible:ring-2 focus-visible:ring-ring/50",
         active
           ? "bg-secondary text-foreground ring-1 ring-foreground/15 ring-inset"
           : "bg-transparent text-muted-foreground ring-1 ring-border/70 ring-inset hover:bg-muted/60 hover:text-foreground",
@@ -202,10 +203,10 @@ function ActiveFilterBadge({ label, onRemove }: { label: string; onRemove: () =>
       <button
         type="button"
         aria-label={`Remove ${label} filter`}
-        className="inline-flex size-4 items-center justify-center rounded-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="-m-1 inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
         onClick={onRemove}
       >
-        <XIcon className="size-3" aria-hidden />
+        <XIcon className="size-3.5" aria-hidden />
       </button>
     </span>
   );
@@ -255,7 +256,7 @@ function SecondaryFiltersPopover({
               role="menuitemcheckbox"
               aria-checked={isOn}
               className={cn(
-                "flex w-full cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-1.5 text-left text-sm",
+                "flex w-full min-h-9 cursor-pointer items-center justify-between gap-2 rounded-md px-2 py-2 text-left text-sm",
                 "hover:bg-muted/70 focus-visible:bg-muted/70 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none",
                 isOn && "bg-muted/50",
               )}

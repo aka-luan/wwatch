@@ -5,6 +5,7 @@ import { scanHistoryEntries, scansForTimeline, type ScanHistoryEntry } from "@/l
 import type { SitePage } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
+/** Compact newest-first history. Scanning chrome lives on the sheet banner, not here. */
 export function ScanTimeline({ page }: { page: Pick<SitePage, "latest" | "history"> }) {
   const entries = scanHistoryEntries(scansForTimeline(page));
   if (entries.length === 0) {
@@ -28,14 +29,11 @@ function ScanTimelineItem({ entry, last }: { entry: ScanHistoryEntry; last: bool
   return (
     <li className="grid grid-cols-[0.875rem_minmax(0,1fr)] gap-x-2.5">
       <div className="relative flex justify-center pt-1">
-        {failed ? (
-          <span
-            className="size-2 shrink-0 rounded-full border border-destructive bg-transparent"
-            aria-hidden
-          />
-        ) : (
-          <StatusDot status={entry.status ?? "healthy"} decorative className="size-2" />
-        )}
+        <StatusDot
+          status={failed ? "critical" : (entry.status ?? "healthy")}
+          decorative
+          className="size-2"
+        />
         {last ? null : (
           <span className="absolute top-[0.7rem] bottom-0 w-px bg-border" aria-hidden />
         )}

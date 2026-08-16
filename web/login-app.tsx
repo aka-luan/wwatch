@@ -41,10 +41,12 @@ function LoginForm() {
           Password
           <Input name="password" type="password" required />
         </label>
-        <div className="row-actions">
+        <div className="mt-3 flex justify-end">
           <Button type="submit">Open</Button>
         </div>
-        <p className="help">{error}</p>
+        <p className="help" role="alert" aria-live="assertive">
+          {error}
+        </p>
       </form>
     </div>
   );

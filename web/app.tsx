@@ -118,7 +118,7 @@ function Board() {
         <div className="actions">
           <div className="actions-main">
             <Button
-              variant="ghost"
+              variant="outline"
               type="button"
               disabled={scanAllBusy}
               aria-busy={scanAllBusy}
@@ -167,16 +167,15 @@ function Board() {
               <div className="board-toolbar-meta">
                 <UpdatesEntry summary={updates} onReview={() => setUpdatesOpen(true)} />
                 {scanning > 0 ? (
-                  <p className="scanning-note" aria-live="polite">
-                    <ProcessingIndicator
-                      label={
-                        <>
-                          <b className="font-medium text-foreground">{scanning}</b> scanning
-                        </>
-                      }
-                      size={12}
-                    />
-                  </p>
+                  <ProcessingIndicator
+                    className="scanning-note"
+                    label={
+                      <>
+                        <span className="font-medium text-foreground">{scanning}</span> scanning
+                      </>
+                    }
+                    size={12}
+                  />
                 ) : null}
               </div>
             ) : null}
@@ -267,7 +266,7 @@ function EditSiteDialog({
   const [error, setError] = useState("");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[440px]" showCloseButton={false}>
+      <DialogContent className="max-h-[min(40rem,90dvh)] overflow-y-auto overscroll-contain sm:max-w-[440px]" showCloseButton={false}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -316,7 +315,9 @@ function EditSiteDialog({
             Application password
             <Input name="applicationPassword" placeholder="leave blank to keep" autoComplete="new-password" />
           </label>
-          <p className="error">{error}</p>
+          <p className="error" role="alert" aria-live="assertive">
+            {error}
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel

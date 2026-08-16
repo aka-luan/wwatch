@@ -2,6 +2,7 @@ import { ChevronDownIcon, CircleCheckIcon } from "lucide-react";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
+import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -60,9 +61,9 @@ export function SiteList({
         <h2>{filterEmptyHeading(filters)}</h2>
         {onClearFilters ? (
           <p>
-            <button type="button" className="link-button" onClick={onClearFilters}>
+            <Button type="button" variant="link" className="h-auto px-0" onClick={onClearFilters}>
               Clear filters
-            </button>
+            </Button>
           </p>
         ) : null}
       </div>
@@ -209,18 +210,21 @@ function SiteRow({
   const operation = scanOperationOf(row);
   const copy = siteRowCopy(overview, ago, formatScanWhen);
   const compact = density === "compact";
+  const scanning = operation.kind === "running";
 
   return (
     <button
       type="button"
-      aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}, ${
-        operation.kind === "running" ? "scanning, " : ""
-      }${copy.finding ?? copy.meta}`}
+      aria-label={`${row.site.name}, ${SITE_STATUS_LABEL[overview.status]}${
+        scanning ? ", scanning" : ""
+      }, ${copy.finding ?? copy.meta}`}
       className={rowButtonClass(density)}
-      aria-busy={operation.kind === "running"}
+      aria-busy={scanning}
       onClick={() => onOpen(row.site.id)}
     >
-      <StatusDot status={overview.status} decorative className="mt-1.5" />
+      {compact ? (
+        <StatusDot status={overview.status} decorative className="mt-1.5" />
+      ) : null}
       <span className="min-w-0 flex-1">
         <span className="flex items-start justify-between gap-3">
           <span className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-baseline sm:gap-2">
@@ -232,16 +236,20 @@ function SiteRow({
             >
               {row.site.name}
             </span>
-            <span className="mono host min-w-0 truncate text-[13px]">{host(row.site.origin)}</span>
+            <span className="mono host min-w-0 truncate text-[13px] sm:max-w-[45%]">
+              {host(row.site.origin)}
+            </span>
           </span>
-          <StatusBadge status={overview.status} dot={false} className="mt-0.5 shrink-0" />
+          {compact ? null : (
+            <StatusBadge status={overview.status} className="mt-0.5 shrink-0" />
+          )}
         </span>
         {copy.finding ? (
           <span className="mt-1 block text-sm leading-5 text-foreground">{copy.finding}</span>
         ) : null}
-        {operation.kind === "running" || copy.meta ? (
+        {scanning || copy.meta ? (
           <span className="mt-1 flex flex-col gap-0.5 text-[12px] leading-4 text-muted-foreground">
-            {operation.kind === "running" ? (
+            {scanning ? (
               <ProcessingIndicator label={`${scanningLabel(operation.stage)}…`} size={12} />
             ) : null}
             {copy.meta ? <span>{copy.meta}</span> : null}
