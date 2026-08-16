@@ -591,7 +591,7 @@ function rowAction(
 ): ReactNode {
   if (item.findings.length > 1 && item.findings.every((finding) => finding.kind === "broken_link")) {
     return (
-      <RowAction type="button" onClick={() => onViewLinks(item.findings)}>
+      <RowAction type="button" chevron onClick={() => onViewLinks(item.findings)}>
         View links
       </RowAction>
     );
