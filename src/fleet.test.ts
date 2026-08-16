@@ -351,5 +351,7 @@ test("sitePage lists earlier scans newest first", async () => {
   assert.equal(page.history[0]?.id, "c2");
   assert.equal(page.history[1]?.id, "c1");
   assert.equal(page.history[1]?.counts.crit, 1);
+  assert.equal(page.history[1]?.counts.updates, 0);
+  assert.equal(page.history[0]?.counts.updates, 0);
   await store.close();
 });

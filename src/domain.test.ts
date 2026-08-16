@@ -212,6 +212,49 @@ test("scanSummary keeps rollup, time, and counts without findings", () => {
     id: "c1",
     finishedAt: "t1",
     rollup: "degraded",
-    counts: { crit: 1, warn: 1, info: 0 },
+    counts: { crit: 1, warn: 1, info: 0, updates: 0 },
   });
+});
+
+test("scanSummary counts plugin, theme, and core updates separately from severity", () => {
+  const summary = scanSummary({
+    id: "c2" as never,
+    siteId: "s1" as never,
+    startedAt: "t0",
+    finishedAt: "t1",
+    rollup: "degraded",
+    coreVersion: "6.7.1",
+    plugins: [],
+    findings: [
+      { kind: "exposed_path", severity: "crit", title: "debug.log", detail: "", path: "/debug.log" },
+      {
+        kind: "plugin_update",
+        severity: "warn",
+        title: "Akismet",
+        detail: "",
+        plugin: "akismet/akismet.php" as never,
+        installed: "1.0",
+        latest: "1.1",
+      },
+      {
+        kind: "theme_update",
+        severity: "warn",
+        title: "Twenty Twenty-Four",
+        detail: "",
+        theme: "twentytwentyfour",
+        installed: "1.0",
+        latest: "1.1",
+      },
+      {
+        kind: "core_update",
+        severity: "warn",
+        title: "WordPress",
+        detail: "",
+        installed: "6.7.1",
+        latest: "6.7.2",
+      },
+    ],
+    helper: null,
+  });
+  assert.deepEqual(summary.counts, { crit: 1, warn: 3, info: 0, updates: 3 });
 });
