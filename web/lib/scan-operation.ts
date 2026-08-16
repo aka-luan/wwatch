@@ -128,3 +128,22 @@ export function sitePageFromOverview(row: OverviewRow, previous?: SitePage | nul
     history: [],
   };
 }
+
+/** Sites that were running and are no longer — used for completion toasts. */
+export function finishedScanSites(
+  previousRunningIds: ReadonlySet<string>,
+  sites: readonly OverviewRow[],
+): OverviewRow[] {
+  const stillRunning = new Set(sites.filter((row) => row.running).map((row) => row.site.id));
+  const finished: OverviewRow[] = [];
+  for (const id of previousRunningIds) {
+    if (stillRunning.has(id)) {
+      continue;
+    }
+    const row = sites.find((item) => item.site.id === id);
+    if (row) {
+      finished.push(row);
+    }
+  }
+  return finished;
+}

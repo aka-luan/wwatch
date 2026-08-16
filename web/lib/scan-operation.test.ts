@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  finishedScanSites,
   isScanFailure,
   lastSuccessfulFinishedAt,
   scanningLabel,
@@ -106,4 +107,22 @@ test("scanningLabel only formats real stage counts", () => {
   assert.equal(scanningLabel(null), "Scanning");
   assert.equal(scanningLabel({ label: "checking plugins" }), "Scanning · checking plugins");
   assert.equal(scanningLabel({ label: "checking plugins", done: 4, total: 7 }), "Checking plugins · 4/7");
+});
+
+test("finishedScanSites returns rows that left the running set", () => {
+  const doneOk = row({
+    site: { id: "s2", name: "Other", origin: "https://other.example" },
+    latest: snapshot({ id: "c2", siteId: "s2", rollup: "ok" }),
+    running: null,
+  });
+  const stillRunning = row({ running: { id: "j1", startedAt: "t0" } });
+  const previous = new Set(["s1", "s2"]);
+  assert.deepEqual(
+    finishedScanSites(previous, [
+      row({ running: null }),
+      doneOk,
+    ]).map((item) => item.site.id),
+    ["s1", "s2"],
+  );
+  assert.deepEqual(finishedScanSites(previous, [stillRunning, doneOk]).map((item) => item.site.id), ["s2"]);
 });
