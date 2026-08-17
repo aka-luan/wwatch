@@ -218,7 +218,7 @@ function collapsedBrokenLinks(links: Finding[]): DisplayFinding {
   return {
     id: "broken_link:aggregate",
     status: "attention",
-    statusLabel: "Attention",
+    statusLabel: "Warning",
     title: `${links.length} broken links`,
     detail: sorted.map((link) => `${link.url ?? link.detail}${link.httpStatus ? ` (${link.httpStatus})` : ""}`).join("; "),
     compact: false,
@@ -357,7 +357,7 @@ function severityLabel(severity: Finding["severity"]): string {
     return "Critical";
   }
   if (severity === "warn") {
-    return "Attention";
+    return "Warning";
   }
   return "Info";
 }

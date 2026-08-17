@@ -4,10 +4,12 @@
  * a dedicated site page.
  */
 import { type ReactNode } from "react";
+import { DownloadIcon, PuzzleIcon } from "lucide-react";
 import { RowAction } from "@/components/finding-row";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Callout } from "@/components/ui/callout";
 import { Spinner } from "@/components/ui/spinner";
 import { StatusBadge } from "@/components/status-badge";
 import { type DisplayFinding } from "@/lib/finding-groups";
@@ -64,8 +66,11 @@ export function ScanOperationBanner({
       : null;
 
   return (
-    <div className="space-y-1" aria-live="polite">
-      <p className="text-sm font-medium text-destructive">Scan failed</p>
+    <div
+      className="space-y-1 rounded-lg border border-destructive/25 bg-destructive/5 px-3.5 py-2.5"
+      aria-live="polite"
+    >
+      <p className="m-0 text-sm font-medium text-destructive">Scan failed</p>
       <div className="flex flex-wrap items-center justify-between gap-2">
         {lastSuccessfulCopy ? (
           <p className="min-w-0 text-[13px] leading-5 text-muted-foreground">{lastSuccessfulCopy}</p>
@@ -84,32 +89,42 @@ export function ScanOperationBanner({
   );
 }
 
-export function HelperHelp({ helper }: { helper: HelperInfo | null }) {
-  if (!helper || helper.kind === "missing") {
-    return (
-      <p className="text-sm text-muted-foreground">
-        Install the <a href="/api/helper-plugin">wwatch plugin</a> to open WP Admin, update, or fix findings from
-        the board.
-      </p>
-    );
+/**
+ * What the board could do here if the plugin were installed or current. Guidance, not a
+ * finding, so it renders as a quiet callout with the download as its one action.
+ */
+export function HelperHelp({ helper, className }: { helper: HelperInfo | null; className?: string }) {
+  const copy = !helper || helper.kind === "missing"
+    ? "Install the wwatch plugin to manage WordPress directly from wwatch — open WP Admin, update, or fix findings from the board."
+    : !helperCan(helper, "update")
+      ? "This plugin can log in. Download the current wwatch plugin to update or fix findings from the board."
+      : !helperCan(helper, "repair")
+        ? "This plugin can log in and update. Download the current wwatch plugin to fix exposed files from the board."
+        : null;
+
+  if (!copy) {
+    return null;
   }
-  if (!helperCan(helper, "update")) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        This plugin can log in. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to update or
-        fix findings from the board.
-      </p>
-    );
-  }
-  if (!helperCan(helper, "repair")) {
-    return (
-      <p className="text-sm text-muted-foreground">
-        This plugin can log in and update. Download the current <a href="/api/helper-plugin">wwatch plugin</a> to
-        fix exposed files from the board.
-      </p>
-    );
-  }
-  return null;
+
+  return (
+    <Callout
+      className={className}
+      icon={<PuzzleIcon className="size-4" aria-hidden />}
+      action={
+        <Button
+          variant="outline"
+          size="xs"
+          nativeButton={false}
+          render={<a href="/api/helper-plugin" />}
+        >
+          <DownloadIcon />
+          Get the plugin
+        </Button>
+      }
+    >
+      {copy}
+    </Callout>
+  );
 }
 
 export function rowAction(
@@ -244,23 +259,24 @@ export function PluginRow({
   const update = findings.find((item) => item.kind === "plugin_update" && item.plugin === plugin.ref);
   const next = plugin.status === "active" ? "inactive" : "active";
   return (
-    <div className="flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30 sm:flex-row sm:items-start sm:justify-between">
+    <div className="flex flex-col gap-2 border-t border-hairline px-3.5 py-2.5 transition-colors first:border-t-0 hover:bg-muted/30 sm:flex-row sm:items-start sm:justify-between">
       <div className="min-w-0">
-        <p className="[overflow-wrap:anywhere]">
-          <strong>{plugin.name}</strong>{" "}
-          <Badge variant="outline" className="h-5 px-1.5 py-0 font-mono text-[11px] font-medium tracking-wide uppercase">
-            {plugin.status}
-          </Badge>
+        <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[13px] leading-5 [overflow-wrap:anywhere]">
+          <span className="font-medium">{plugin.name}</span>
+          {plugin.status === "inactive" ? (
+            <Badge variant="secondary" className="h-5 px-2 text-[11px] font-medium">
+              Inactive
+            </Badge>
+          ) : null}
           {update ? (
-            <>
-              {" "}
-              <StatusBadge status="attention" /> {plugin.version} → {update.latest}
-            </>
+            <StatusBadge status="attention" dot={false} className="font-mono">
+              {plugin.version} → {update.latest}
+            </StatusBadge>
           ) : (
-            <span className="font-mono"> {plugin.version}</span>
+            <span className="font-mono text-[12px] text-muted-foreground">{plugin.version}</span>
           )}
         </p>
-        <p className="font-mono text-[12px] text-muted-foreground">{plugin.ref}</p>
+        <p className="font-mono text-[12px] leading-4 text-muted-foreground/80">{plugin.ref}</p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {canUpdate && update ? (

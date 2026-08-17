@@ -344,8 +344,17 @@ label {
   font-weight: 500;
 }
 
-a {
+/*
+ * Prose links only. A Button or Badge rendered as an <a> carries its own color and shape,
+ * and this rule is unlayered — it would otherwise beat every utility those components set.
+ */
+a:not([data-slot="button"]):not([data-slot="badge"]) {
   color: var(--ring);
+}
+
+a[data-slot="button"],
+a[data-slot="badge"] {
+  text-decoration: none;
 }
 
 @media (max-width: 840px) {
@@ -418,6 +427,20 @@ a {
    * keep the user-agent gray face and font. Any element that opts into a surface does so
    * with a utility, which lands in the later utilities layer and wins over this.
    */
+  /*
+   * Same reason: without preflight, every <p> and heading keeps the user-agent 1em block
+   * margin, so a component that also sets mt-1 gets 17px of gap it never asked for.
+   * Spacing is a component's own decision; anything that wants margin sets it explicitly.
+   */
+  p,
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-block: 0;
+  }
   button,
   input,
   select,

@@ -38,18 +38,18 @@ function ScanTimelineItem({ entry, last }: { entry: ScanHistoryEntry; last: bool
           <span className="absolute top-[0.7rem] bottom-0 w-px bg-border" aria-hidden />
         )}
       </div>
-      <div className={cn("min-w-0", last ? "pb-0" : "pb-3")}>
-        <p className="text-[13px] leading-5 text-foreground">
+      <div className={cn("min-w-0", last ? "pb-0" : "pb-3.5")}>
+        <p className="m-0 text-[13px] leading-5 font-medium text-foreground">
           <time dateTime={entry.scan.finishedAt}>{when}</time>
         </p>
-        <p className={cn("text-[13px] leading-5", failed ? "text-destructive" : "text-muted-foreground")}>
+        <p className={cn("m-0 text-[13px] leading-5", failed ? "text-destructive" : "text-muted-foreground")}>
           {outcome}
         </p>
         {entry.countsLine ? (
-          <p className="text-[13px] leading-5 text-muted-foreground">{entry.countsLine}</p>
+          <p className="m-0 text-[12px] leading-4 text-muted-foreground/80">{entry.countsLine}</p>
         ) : null}
         {entry.changes.map((change) => (
-          <p key={change.kind} className="text-[12px] leading-4 text-muted-foreground">
+          <p key={change.kind} className="m-0 text-[12px] leading-4 text-muted-foreground/80">
             <span className="sr-only">{change.spoken}</span>
             <span aria-hidden="true">{change.text}</span>
           </p>
