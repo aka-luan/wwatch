@@ -3,10 +3,13 @@ import { ScanLineIcon } from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
 import { AddSiteDialog } from "@/components/add-site-dialog";
+import { FleetCards } from "@/components/fleet-cards";
+import { FleetSelectionBar } from "@/components/fleet-selection-bar";
+import { FleetStatStrip } from "@/components/fleet-stat-strip";
+import { FleetTable } from "@/components/fleet-table";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
-import { SiteList } from "@/components/site-list";
-import { SiteSummaryBar } from "@/components/site-summary-bar";
+import { SitePage as SitePageView } from "@/components/site-page";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
 import { api } from "@/lib/api";
-import { emptyFilterState, filterSites, type SiteFilterState } from "@/lib/site-filters";
+import { emptyFilterState, filterEmptyHeading, filterSites, type SiteFilterState } from "@/lib/site-filters";
 import { finishedScanSites, isScanFailure, sitePageFromOverview } from "@/lib/scan-operation";
 import type { OverviewRow, SitePage } from "@/lib/types";
 
@@ -41,6 +44,7 @@ function Board() {
   const [editOpen, setEditOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
   const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
+  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set<string>());
   const runningIdsRef = useRef<Set<string>>(new Set());
   const runningSeenRef = useRef(false);
 
@@ -104,6 +108,33 @@ function Board() {
   const filteredSites = filterSites(sites, filters);
   const scanning = sites.filter((row) => row.running).length;
 
+  function openSite(id: string) {
+    const row = sites.find((item) => item.site.id === id);
+    setPage(row ? sitePageFromOverview(row, page) : null);
+    setSelected(id);
+  }
+
+  function backToFleet() {
+    setSelected(null);
+    setPage(null);
+  }
+
+  if (selected) {
+    return (
+      <div className="board">
+        <SitePageView
+          page={selectedPage}
+          onBack={backToFleet}
+          onEdit={() => setEditOpen(true)}
+          onChanged={refresh}
+        />
+        {selectedPage ? (
+          <EditSiteDialog open={editOpen} onOpenChange={setEditOpen} page={selectedPage} onSaved={refresh} />
+        ) : null}
+      </div>
+    );
+  }
+
   return (
     <div className="board">
       <header className="top">
@@ -157,21 +188,23 @@ function Board() {
       </header>
       {loaded ? (
         sites.length > 0 ? (
-          <div className="board-toolbar">
-            <SiteSummaryBar sites={sites} state={filters} onChange={setFilters} onChanged={refresh} />
-            <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-            {scanning > 0 ? (
-              <ProcessingIndicator
-                className="scanning-note"
-                label={
-                  <>
-                    <span className="font-medium text-foreground">{scanning}</span> scanning
-                  </>
-                }
-                size={12}
-              />
-            ) : null}
-          </div>
+          <>
+            <FleetStatStrip sites={sites} state={filters} onChange={setFilters} />
+            <div className="board-toolbar">
+              <SiteFilters sites={sites} state={filters} onChange={setFilters} />
+              {scanning > 0 ? (
+                <ProcessingIndicator
+                  className="scanning-note"
+                  label={
+                    <>
+                      <span className="font-medium text-foreground">{scanning}</span> scanning
+                    </>
+                  }
+                  size={12}
+                />
+              ) : null}
+            </div>
+          </>
         ) : null
       ) : (
         <div className="board-toolbar">
@@ -188,28 +221,34 @@ function Board() {
         </div>
       )}
       <main>
-        <SiteList
-          sites={filteredSites}
-          fleetCount={sites.length}
-          filters={filters}
-          onClearFilters={() => setFilters(emptyFilterState())}
-          loaded={loaded}
-          selectedId={selected}
-          selectedPage={selectedPage}
-          onToggle={(id) => {
-            if (id === selected) {
-              setSelected(null);
-              setPage(null);
-              return;
-            }
-            const row = sites.find((item) => item.site.id === id);
-            setPage(row ? sitePageFromOverview(row, page) : null);
-            setSelected(id);
-          }}
-          onEdit={() => setEditOpen(true)}
-          onChanged={refresh}
-        />
+        {loaded && sites.length === 0 ? (
+          <EmptyFleet />
+        ) : (
+          <>
+            <div className="fleet-desktop">
+              <FleetTable
+                sites={filteredSites}
+                loaded={loaded}
+                selectedIds={selection}
+                onSelectionChange={setSelection}
+                onOpen={openSite}
+              />
+            </div>
+            <div className="fleet-mobile">
+              <FleetCards sites={filteredSites} loaded={loaded} onOpen={openSite} />
+            </div>
+            {loaded && filteredSites.length === 0 ? (
+              <FilteredEmpty filters={filters} onClear={() => setFilters(emptyFilterState())} />
+            ) : null}
+          </>
+        )}
       </main>
+      <FleetSelectionBar
+        sites={sites}
+        selectedIds={selection}
+        onClear={() => setSelection(new Set())}
+        onChanged={refresh}
+      />
       <AddSiteDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -218,14 +257,6 @@ function Board() {
           await refresh();
         }}
       />
-      {selectedPage ? (
-        <EditSiteDialog
-          open={editOpen}
-          onOpenChange={setEditOpen}
-          page={selectedPage}
-          onSaved={refresh}
-        />
-      ) : null}
     </div>
   );
 }
@@ -305,5 +336,31 @@ function EditSiteDialog({
         </form>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function EmptyFleet() {
+  return (
+    <div className="empty">
+      <h2>No sites yet</h2>
+      <p>
+        Add a WordPress site you already admin. wwatch talks to it with an Application Password from
+        Users → Profile. Scans install nothing on the site. WP Admin from the site page needs the
+        optional wwatch plugin.
+      </p>
+    </div>
+  );
+}
+
+function FilteredEmpty({ filters, onClear }: { filters: SiteFilterState; onClear: () => void }) {
+  return (
+    <div className="empty empty-compact">
+      <h2>{filterEmptyHeading(filters)}</h2>
+      <p>
+        <Button type="button" variant="link" className="h-auto px-0" onClick={onClear}>
+          Clear filters
+        </Button>
+      </p>
+    </div>
   );
 }
