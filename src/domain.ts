@@ -222,8 +222,8 @@ export function parseOrigin(raw: string, opts?: { allowHttp?: boolean }): Origin
   if (url.username || url.password) {
     throw new Error("Origin must not include credentials");
   }
-  if (isBlockedOriginHost(url.hostname)) {
-    throw new Error("Origin must not be a link-local or cloud metadata address");
+  if (!local && isBlockedOriginHost(url.hostname)) {
+    throw new Error("Origin must not be a private, link-local, or cloud metadata address");
   }
   url.hash = "";
   url.search = "";
@@ -231,29 +231,95 @@ export function parseOrigin(raw: string, opts?: { allowHttp?: boolean }): Origin
   return url.origin as Origin;
 }
 
-function isLoopbackHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/, "");
-  return host === "localhost" || host === "127.0.0.1" || host === "::1" || host === "[::1]";
+export function isLoopbackHost(hostname: string): boolean {
+  const host = normalizeHost(hostname);
+  return host === "localhost" || host === "::1" || /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(host);
+}
+
+function normalizeHost(hostname: string): string {
+  return hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
 }
 
 function isBlockedOriginHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/\.$/, "").replace(/^\[|\]$/g, "");
+  const host = normalizeHost(hostname);
   if (
     host === "metadata.google.internal" ||
     host.endsWith(".metadata.google.internal") ||
-    host === "metadata.goog" ||
-    host === "fd00:ec2::254"
+    host === "metadata.goog"
   ) {
     return true;
   }
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
-    return host.startsWith("169.254.") || host.startsWith("0.");
-  }
-  const mapped = host.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
+  return isBlockedAddress(host);
+}
+
+/**
+ * Reserved and private space the board must never be pointed at. Loopback is the one exception:
+ * `npm run verify` and local WordPress installs live there, and parseOrigin only reaches this
+ * for a non-loopback host.
+ */
+export function isBlockedAddress(raw: string): boolean {
+  const host = normalizeHost(raw);
+  const mapped = host.match(/^::ffff:(\d{1,3}(?:\.\d{1,3}){3})$/i);
   if (mapped?.[1]) {
-    return isBlockedOriginHost(mapped[1]);
+    return isBlockedAddress(mapped[1]);
   }
-  return host === "::" || host.startsWith("fe80:");
+  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) {
+    return isBlockedIpv4(host);
+  }
+  if (host.includes(":")) {
+    return isBlockedIpv6(host);
+  }
+  return false;
+}
+
+function isBlockedIpv4(host: string): boolean {
+  const parts = host.split(".").map((part) => Number(part));
+  const [a = 0, b = 0, c = 0] = parts;
+  if (parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) {
+    return true;
+  }
+  if (a === 0 || a === 10 || a === 127) {
+    return true; // this network, RFC1918, loopback
+  }
+  if (a === 169 && b === 254) {
+    return true; // link-local, which covers the AWS/Azure metadata address
+  }
+  if (a === 172 && b >= 16 && b <= 31) {
+    return true; // RFC1918
+  }
+  if (a === 192 && b === 168) {
+    return true; // RFC1918
+  }
+  if (a === 192 && b === 0 && (c === 0 || c === 2)) {
+    return true; // IETF protocol assignments, TEST-NET-1
+  }
+  if (a === 100 && b >= 64 && b <= 127) {
+    return true; // CGNAT
+  }
+  if (a === 198 && (b === 18 || b === 19)) {
+    return true; // benchmarking
+  }
+  if (a === 198 && b === 51 && c === 100) {
+    return true; // TEST-NET-2
+  }
+  if (a === 203 && b === 0 && c === 113) {
+    return true; // TEST-NET-3
+  }
+  return a >= 224; // multicast and reserved
+}
+
+function isBlockedIpv6(host: string): boolean {
+  if (host === "::" || host === "::1" || host === "fd00:ec2::254") {
+    return true;
+  }
+  // URL parsing rewrites ::ffff:10.0.0.5 as ::ffff:a00:5, so unpack the v4 address back out.
+  const hextets = host.match(/^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/i);
+  if (hextets?.[1] && hextets[2]) {
+    const high = Number.parseInt(hextets[1], 16);
+    const low = Number.parseInt(hextets[2], 16);
+    return isBlockedIpv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`);
+  }
+  return /^(f[cd]|fe[89ab])/i.test(host); // unique-local and link-local
 }
 
 export function parsePluginRef(raw: string): PluginRef {

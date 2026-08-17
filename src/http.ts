@@ -26,6 +26,7 @@ export function createApp(
   dashboardPassword = "",
   cronSecret = "",
   sessionKey: Buffer = sessionKeyFromEnv(),
+  trustProxy: boolean = trustProxyFromEnv(),
 ): Hono {
   const app = new Hono();
 
@@ -71,7 +72,7 @@ export function createApp(
       return;
     }
     const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
-    if (cookie && sessionCookieValid(cookie, sessionKey)) {
+    if (cookie && sessionCookieValid(cookie, sessionKey) && !(await fleet.sessionRevoked(sessionNonce(cookie)))) {
       await next();
       return;
     }
@@ -215,7 +216,7 @@ export function createApp(
   });
 
   app.post("/api/login", async (c) => {
-    const ip = clientIp(c);
+    const ip = clientIp(c, trustProxy);
     if (!(await fleet.loginAllowed(ip))) {
       return c.json({ error: "too many attempts" }, 429);
     }
@@ -231,6 +232,10 @@ export function createApp(
   });
 
   app.post("/api/logout", async (c) => {
+    const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
+    if (cookie && sessionCookieValid(cookie, sessionKey)) {
+      await fleet.revokeSession(sessionNonce(cookie), Number(cookie.split(".")[0]) + SESSION_TTL_MS);
+    }
     c.header("set-cookie", watchCookie("", c, 0));
     return c.json({ ok: true });
   });
@@ -314,6 +319,10 @@ export function sessionToken(
   return `${issued}.${nonce}.${mac}`;
 }
 
+export function sessionNonce(cookie: string): string {
+  return cookie.split(".")[1] ?? "";
+}
+
 export function sessionCookieValid(cookie: string, key: Buffer, now = Date.now()): boolean {
   const [issued, nonce, mac] = cookie.split(".");
   if (!issued || !nonce || !mac) {
@@ -340,15 +349,42 @@ function secretsEqual(left: string, right: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-function clientIp(c: { req: { header: (name: string) => string | undefined } }): string {
-  const forwarded = c.req.header("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
+/**
+ * X-Forwarded-For is written by whoever is talking to us unless a proxy we trust replaces it,
+ * so honouring it by default hands out a fresh rate-limit bucket per request. Vercel rewrites
+ * the header; anything else has to say so with TRUST_PROXY.
+ */
+export function trustProxyFromEnv(env: NodeJS.Dict<string> = process.env): boolean {
+  if (env.VERCEL === "1") {
+    return true;
+  }
+  return /^(1|true|yes)$/i.test(env.TRUST_PROXY?.trim() ?? "");
+}
+
+function clientIp(c: SocketContext, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = c.req.header("x-forwarded-for");
+    const first = forwarded?.split(",")[0]?.trim();
     if (first) {
       return first;
     }
+    const real = c.req.header("x-real-ip")?.trim();
+    if (real) {
+      return real;
+    }
   }
-  return c.req.header("x-real-ip") ?? "local";
+  return socketAddress(c) ?? "local";
+}
+
+type SocketContext = {
+  req: { header: (name: string) => string | undefined };
+  env?: unknown;
+};
+
+function socketAddress(c: SocketContext): string | null {
+  const env = c.env as { incoming?: { socket?: { remoteAddress?: unknown } } } | undefined;
+  const address = env?.incoming?.socket?.remoteAddress;
+  return typeof address === "string" && address ? address : null;
 }
 
 function cookieSecure(c: { req: { url: string; header: (name: string) => string | undefined } }): string {

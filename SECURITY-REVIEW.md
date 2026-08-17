@@ -2,8 +2,8 @@
 
 Manual review against the OWASP Top 10 (2021), covering the Hono/TypeScript service in
 `src/`, the React dashboard in `web/`, and the WordPress helper plugin in `plugin/wwatch.php`.
-Findings 1 and 2 have been fixed in this branch; the rest are recorded here with locations and
-suggested fixes.
+Findings 1 through 6 have been fixed in this branch; 7 through 11 are recorded here with
+locations and suggested fixes.
 
 Scope reviewed: `src/http.ts`, `src/index.ts`, `src/server.ts`, `src/store.ts`, `src/wrap.ts`,
 `src/fleet.ts`, `src/scan.ts`, `src/helper.ts`, `src/domain.ts`, `src/alert.ts`, `src/zip.ts`,
@@ -15,10 +15,10 @@ Scope reviewed: `src/http.ts`, `src/index.ts`, `src/server.ts`, `src/store.ts`, 
 |---|---------|-------|----------|--------|
 | 1 | Session cookie is an HMAC keyed by the dashboard password | A02, A07 | High | **Fixed** |
 | 2 | Stored Application Passwords are wrapped with a key derived from that same password by one SHA-256 | A02 | High | **Fixed** |
-| 3 | Helper plugin gates updates/repairs on `manage_options` (multisite privilege escalation) | A01 | Medium | Open |
-| 4 | Scanner will fetch private/internal addresses (authenticated SSRF) | A10 | Medium | Open |
-| 5 | Login rate limit keys on a client-controlled `X-Forwarded-For` | A07 | Medium | Open |
-| 6 | Logout does not revoke the session server-side | A07 | Low | Open |
+| 3 | Helper plugin gates updates/repairs on `manage_options` (multisite privilege escalation) | A01 | Medium | **Fixed** |
+| 4 | Scanner will fetch private/internal addresses (authenticated SSRF) | A10 | Medium | **Fixed** |
+| 5 | Login rate limit keys on a client-controlled `X-Forwarded-For` | A07 | Medium | **Fixed** |
+| 6 | Logout does not revoke the session server-side | A07 | Low | **Fixed** |
 | 7 | State-changing endpoints rely on `SameSite=Lax` alone | A01 | Low | Open |
 | 8 | Internal error text is returned to the client | A05 | Low | Open |
 | 9 | Auto-login token travels in the URL query string | A07 | Low | Open |
@@ -69,7 +69,7 @@ pay a scrypt per site per request. `v1:` rows are still readable, and `Store` re
 that is not current-format-under-the-current-secret on startup, so setting `WATCH_SECRET` on an
 existing board migrates its rows instead of locking them out.
 
-### 3. Helper plugin authorizes updates and repairs with `manage_options` — A01, Medium
+### 3. Helper plugin authorizes updates and repairs with `manage_options` — A01, Medium — FIXED
 
 `plugin/wwatch.php`: every route uses `wwatch_can_manage()` (`current_user_can("manage_options")`).
 On single-site that is roughly equivalent to administrator, but on multisite a site
@@ -79,11 +79,13 @@ can therefore use `/wp-json/wwatch/v1/update` to upgrade network-wide plugins, t
 and `/repair` to delete files under `ABSPATH` — capabilities WordPress deliberately withholds
 from them.
 
-Fix: gate each route on the capability it actually exercises — `update_plugins` /
-`update_themes` / `update_core` for the update kinds, `delete_files` (or `is_super_admin()` on
-multisite) for repair — rather than a blanket `manage_options`.
+Fixed in helper 1.4.0: `/update` now runs `wwatch_can_update()`, which maps the request's kind to
+`update_plugins`, `update_themes`, or `update_core`; `/repair` runs `wwatch_can_repair()`, which
+allows the XML-RPC option write on `manage_options` but requires network admin before deleting a
+file. `DISALLOW_FILE_MODS` strips the update caps from everyone, so in that case the permission
+callback defers to the handler's existing explanation rather than answering a bare 403.
 
-### 4. Scanner reaches private and internal addresses — A10, Medium
+### 4. Scanner reaches private and internal addresses — A10, Medium — FIXED
 
 `parseOrigin()` in `src/domain.ts` blocks link-local (`169.254/16`, `fe80::`), `0.0.0.0/8`, and
 cloud metadata hostnames, and permits plain HTTP only for loopback. It does not block RFC1918
@@ -97,11 +99,19 @@ address (or re-resolves between check and fetch) passes.
 This requires a logged-in board user, so it is not remotely exploitable on its own; it matters
 because the board is a single shared password away from an internal-network probe.
 
-Fix: extend `isBlockedOriginHost()` to the full private/reserved set, and resolve the hostname
-and check the resulting addresses before each outbound request (or route scans through a proxy
-that enforces this).
+Fixed: `isBlockedAddress()` in `src/domain.ts` now covers RFC1918, CGNAT, benchmarking,
+documentation, multicast/reserved v4, unique-local and link-local v6, and the v4-mapped forms
+URL parsing rewrites (`::ffff:a00:5`). Loopback stays allowed on purpose — local WordPress and
+`npm run verify` need it. `assertPublicOrigin()` in `src/scan.ts` then resolves the hostname and
+refuses any answer in that space; it runs on connect, on every scan, and before each helper
+action (login link, update, repair, plugin toggle). Resolution failures are left alone so the
+request that follows reports the real problem.
 
-### 5. Login rate limit keys on a spoofable header — A07, Medium
+Residual: the check is not pinned to the socket the request eventually opens, so a record that
+flips between the lookup and the fetch still gets through. Closing that needs a custom agent
+that dials a vetted address, which is more than this surface warrants today.
+
+### 5. Login rate limit keys on a spoofable header — A07, Medium — FIXED
 
 `clientIp()` in `src/http.ts` takes the first comma-separated token of `X-Forwarded-For`, which
 the client supplies. Behind Vercel the platform overwrites that header, but for any deployment
@@ -109,19 +119,21 @@ run directly (`npm start`) or behind a proxy that appends rather than replaces, 
 rotates the header per request and the 10-per-15-minute limit in `src/store.ts` never engages —
 unlimited guesses against the single dashboard password.
 
-Fix: read the client address from the socket by default, and only trust `X-Forwarded-For` when
-an explicit trusted-proxy setting is configured (and then take the last untrusted hop, not the
-first token).
+Fixed: `clientIp()` reads the socket address unless the deployment says a proxy is in front.
+`trustProxyFromEnv()` trusts Vercel (which rewrites the header itself) and otherwise requires
+`TRUST_PROXY=1`; `createApp()` takes the flag as an argument so tests cover both modes.
 
-### 6. Logout does not revoke the session — A07, Low
+### 6. Logout does not revoke the session — A07, Low — FIXED
 
 `POST /api/logout` clears the cookie in the browser only. Any copy of the cookie stays valid
 for the full 7-day `SESSION_TTL_MS`; there is no server-side session record to delete. Since
 finding 1, rotating `WATCH_SECRET` invalidates every outstanding cookie at once — that is the
 only revocation there is, and it forces a rewrap of stored credentials on the next start.
 
-Fix: persist the cookie's nonce as a session record (it is already random per login) and delete
-it on logout, or keep a `not-before` timestamp that logout advances.
+Fixed: logout writes the cookie's nonce to a `revoked_sessions` table with the cookie's own
+expiry, and the auth middleware rejects any cookie whose nonce is listed. Expired rows are pruned
+on each write. A deny list keeps login stateless and fails open only for logout, which is the
+right way round if the database is briefly unreachable.
 
 ### 7. No CSRF token on state-changing routes — A01, Low
 

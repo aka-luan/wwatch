@@ -1,8 +1,11 @@
 import { randomUUID } from "node:crypto";
+import { lookup } from "node:dns/promises";
 import tls from "node:tls";
 import {
   asScanId,
   compareVersions,
+  isBlockedAddress,
+  isLoopbackHost,
   parsePluginRef,
   pluginSlug,
   rollupOf,
@@ -41,15 +44,50 @@ export type ScanDeps = {
   fetch: typeof fetch;
   now: () => Date;
   tlsDaysLeft: (host: string, port: number) => Promise<number | null>;
+  /** Left out by tests, which have no business touching DNS. */
+  resolveHost?: (host: string) => Promise<string[]>;
 };
 
 export const defaultDeps: ScanDeps = {
   fetch,
   now: () => new Date(),
   tlsDaysLeft,
+  resolveHost,
 };
 
+export async function resolveHost(host: string): Promise<string[]> {
+  const addresses = await lookup(host, { all: true });
+  return addresses.map((entry) => entry.address);
+}
+
+/**
+ * A hostname is not a promise about where it points. parseOrigin rejects literal private
+ * addresses, so this catches the other half: a public-looking name whose A record aims at the
+ * network the board itself runs in. Resolution failures are left alone — the request that
+ * follows will fail on its own and say so more usefully.
+ */
+export async function assertPublicOrigin(origin: string, deps: ScanDeps): Promise<void> {
+  if (!deps.resolveHost) {
+    return;
+  }
+  const host = new URL(origin).hostname;
+  if (isLoopbackHost(host)) {
+    return;
+  }
+  let addresses: string[];
+  try {
+    addresses = await deps.resolveHost(host);
+  } catch {
+    return;
+  }
+  const blocked = addresses.find((address) => isBlockedAddress(address));
+  if (blocked) {
+    throw new Error(`${host} resolves to a private address (${blocked})`);
+  }
+}
+
 export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): Promise<ScanSnapshot> {
+  await assertPublicOrigin(site.origin, deps);
   const startedAt = deps.now().toISOString();
   const id = asScanId(randomUUID());
   const findings: Finding[] = [];
@@ -299,6 +337,7 @@ export async function runScan(site: StoredSite, deps: ScanDeps = defaultDeps): P
 }
 
 export async function assertConnect(site: StoredSite, deps: ScanDeps = defaultDeps): Promise<void> {
+  await assertPublicOrigin(site.origin, deps);
   const index = await read(deps, site.origin + "/wp-json");
   if (index.kind === "network") {
     throw new Error(`Site did not respond: ${index.detail}`);

@@ -6,6 +6,7 @@ import {
   findingCounts,
   helperCan,
   helperFromCapabilities,
+  isBlockedAddress,
   parseHelperInfo,
   parseOrigin,
   parsePluginRef,
@@ -38,6 +39,37 @@ test("parseOrigin rejects link-local and cloud metadata hosts", () => {
   assert.throws(() => parseOrigin("https://[fe80::1]"), /metadata/);
   assert.equal(parseOrigin("https://bakery.example"), "https://bakery.example");
   assert.equal(parseOrigin("http://127.0.0.1:8080"), "http://127.0.0.1:8080");
+});
+
+test("parseOrigin rejects private space but keeps loopback for local development", () => {
+  for (const host of [
+    "10.0.0.5",
+    "172.16.4.9",
+    "172.31.255.1",
+    "192.168.1.1",
+    "100.64.0.1",
+    "192.0.0.1",
+    "198.18.0.1",
+    "0.0.0.0",
+    "224.0.0.1",
+    "[::ffff:10.0.0.5]",
+    "[fc00::1]",
+    "[::]",
+  ]) {
+    assert.throws(() => parseOrigin(`https://${host}`), /private|metadata/, host);
+  }
+  assert.equal(parseOrigin("https://172.32.0.1"), "https://172.32.0.1");
+  assert.equal(parseOrigin("http://127.0.0.2:8080"), "http://127.0.0.2:8080");
+  assert.equal(parseOrigin("http://[::1]:8080"), "http://[::1]:8080");
+});
+
+test("isBlockedAddress classifies what a hostname may resolve to", () => {
+  assert.equal(isBlockedAddress("10.1.2.3"), true);
+  assert.equal(isBlockedAddress("169.254.169.254"), true);
+  assert.equal(isBlockedAddress("127.0.0.1"), true);
+  assert.equal(isBlockedAddress("fe80::1"), true);
+  assert.equal(isBlockedAddress("93.184.216.34"), false);
+  assert.equal(isBlockedAddress("2606:2800:220:1::1"), false);
 });
 
 test("pluginSlug uses the directory, not the file", () => {

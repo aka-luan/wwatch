@@ -56,6 +56,30 @@ test("login rejects a password cookie and rate-limits failures", async () => {
   });
   assert.equal(badJson.status, 401);
 
+  // The bad-json attempt above already counts, so nine more reach the limit.
+  for (let i = 0; i < 9; i += 1) {
+    const fail = await app.request("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9" },
+      body: JSON.stringify({ password: "nope" }),
+    });
+    assert.equal(fail.status, 401);
+  }
+  // A fresh X-Forwarded-For buys nothing: untrusted, the header is not the rate-limit key.
+  const locked = await app.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" },
+    body: JSON.stringify({ password: "board" }),
+  });
+  assert.equal(locked.status, 429);
+  await store.close();
+});
+
+test("a trusted proxy makes X-Forwarded-For the rate-limit key again", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const app = createApp(new Fleet(store), "board", "", sessionKeyFromEnv({ WATCH_SECRET: "k" }), true);
+
   for (let i = 0; i < 10; i += 1) {
     const fail = await app.request("/api/login", {
       method: "POST",
@@ -70,6 +94,13 @@ test("login rejects a password cookie and rate-limits failures", async () => {
     body: JSON.stringify({ password: "board" }),
   });
   assert.equal(locked.status, 429);
+
+  const other = await app.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" },
+    body: JSON.stringify({ password: "board" }),
+  });
+  assert.equal(other.status, 200);
   await store.close();
 });
 
@@ -95,7 +126,12 @@ test("logout clears the cookie and an expired session is rejected", async () => 
   });
   assert.equal(forged.status, 401);
 
-  const ok = await app.request("/api/sites", { headers: { cookie: session } });
+  // The cookie still carries a good signature; logout revoked its nonce server-side.
+  const revoked = await app.request("/api/sites", { headers: { cookie: session } });
+  assert.equal(revoked.status, 401);
+
+  const fresh = await loginCookie(app, "board");
+  const ok = await app.request("/api/sites", { headers: { cookie: fresh } });
   assert.equal(ok.status, 200);
   await store.close();
 });

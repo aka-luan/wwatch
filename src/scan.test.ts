@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { test } from "node:test";
 import { asSiteId, parseOrigin } from "./domain.js";
-import { assertConnect, describeAuthFailure, runScan, type ScanDeps } from "./scan.js";
+import { assertConnect, assertPublicOrigin, describeAuthFailure, runScan, type ScanDeps } from "./scan.js";
 
 test("runScan records plugin updates, broken links, and exposed paths", async () => {
   const server = await listen((req, res) => {
@@ -560,3 +560,42 @@ function html(res: ServerResponse, body: string): void {
   res.setHeader("content-type", "text/html");
   res.end(body);
 }
+
+test("a public hostname that resolves inside the network is refused", async () => {
+  const site = {
+    id: asSiteId("s1"),
+    name: "Bakery",
+    origin: parseOrigin("https://bakery.example"),
+    username: "luan",
+    applicationPassword: "aaaa",
+  };
+  const deps: ScanDeps = {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async () => new Response("{}", { status: 200 }),
+    resolveHost: async () => ["93.184.216.34", "10.0.0.7"],
+  };
+
+  await assert.rejects(() => assertPublicOrigin(site.origin, deps), /private address \(10\.0\.0\.7\)/);
+  await assert.rejects(() => assertConnect(site, deps), /private address/);
+  await assert.rejects(() => runScan(site, deps), /private address/);
+
+  const publicOnly: ScanDeps = { ...deps, resolveHost: async () => ["93.184.216.34"] };
+  await assertPublicOrigin(site.origin, publicOnly);
+
+  // A name that will not resolve is left to the request itself to report.
+  const unresolvable: ScanDeps = {
+    ...deps,
+    resolveHost: async () => {
+      throw new Error("ENOTFOUND");
+    },
+  };
+  await assertPublicOrigin(site.origin, unresolvable);
+
+  // Loopback stays usable for local development and for npm run verify.
+  const local: ScanDeps = { ...deps, resolveHost: async () => ["127.0.0.1"] };
+  await assertPublicOrigin("http://127.0.0.1:8787", local);
+
+  // Tests that leave resolveHost out do no DNS at all.
+  await assertPublicOrigin(site.origin, { now: deps.now, tlsDaysLeft: deps.tlsDaysLeft, fetch: deps.fetch });
+});

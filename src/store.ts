@@ -214,6 +214,23 @@ export class Store {
     await this.#db.execute({ sql: `DELETE FROM login_failures WHERE ip = ?`, args: [ip] });
   }
 
+  /** Logout writes the cookie's nonce here so the signature alone stops being enough. */
+  async revokeSession(nonce: string, expiresAt: number): Promise<void> {
+    await this.#ready;
+    await this.#db.execute({
+      sql: `INSERT INTO revoked_sessions (nonce, expires_at) VALUES (?, ?)
+            ON CONFLICT(nonce) DO UPDATE SET expires_at = excluded.expires_at`,
+      args: [nonce, expiresAt],
+    });
+    await this.#db.execute({ sql: `DELETE FROM revoked_sessions WHERE expires_at < ?`, args: [Date.now()] });
+  }
+
+  async sessionRevoked(nonce: string): Promise<boolean> {
+    await this.#ready;
+    const row = await this.#one(`SELECT expires_at FROM revoked_sessions WHERE nonce = ?`, [nonce]);
+    return !!row && int(row, "expires_at") > Date.now();
+  }
+
   async overview(): Promise<OverviewRow[]> {
     const sites = await this.listSites();
     const rows: OverviewRow[] = [];
@@ -265,6 +282,10 @@ export class Store {
         ip TEXT PRIMARY KEY,
         count INTEGER NOT NULL,
         reset_at INTEGER NOT NULL
+      );
+      CREATE TABLE IF NOT EXISTS revoked_sessions (
+        nonce TEXT PRIMARY KEY,
+        expires_at INTEGER NOT NULL
       );
       CREATE INDEX IF NOT EXISTS scans_site_finished ON scans (site_id, finished_at DESC);
     `);
