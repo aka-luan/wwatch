@@ -117,6 +117,32 @@ test("wrapSecret encrypts application passwords and migrates plaintext rows", as
   await other.close();
 });
 
+test("rotating to WATCH_SECRET rewraps rows sealed under the board password", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const path = join(dir, "watch.db");
+  const boardOnly = new Store({ url: `file:${path}`, wrapSecret: "board" });
+  await boardOnly.insertSite({
+    id: asSiteId("s1"),
+    name: "Bakery",
+    origin: parseOrigin("https://bakery.example"),
+    username: "luan",
+    applicationPassword: "secret",
+  });
+  await boardOnly.close();
+
+  const rotated = new Store({ url: `file:${path}`, wrapSecret: "watch", previousWrapSecrets: ["board"] });
+  assert.equal((await rotated.getSite(asSiteId("s1")))?.applicationPassword, "secret");
+  await rotated.close();
+
+  const watchOnly = new Store({ url: `file:${path}`, wrapSecret: "watch" });
+  assert.equal((await watchOnly.getSite(asSiteId("s1")))?.applicationPassword, "secret");
+  await watchOnly.close();
+
+  const boardAgain = new Store({ url: `file:${path}`, wrapSecret: "board" });
+  await assert.rejects(() => boardAgain.getSite(asSiteId("s1")), /WATCH_SECRET|decrypt/);
+  await boardAgain.close();
+});
+
 test("login lockout is stored and survives a new Store on the same file", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
   const path = join(dir, "watch.db");

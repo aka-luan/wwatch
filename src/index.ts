@@ -9,6 +9,9 @@ function deployConfigError(): string | undefined {
   if (!process.env.DASHBOARD_PASSWORD) {
     return "Set DASHBOARD_PASSWORD before deploying wwatch";
   }
+  if (!process.env.WATCH_SECRET) {
+    return "Set WATCH_SECRET (32+ random bytes, not the board password) before deploying wwatch";
+  }
   if (!process.env.TURSO_DATABASE_URL) {
     return "Set TURSO_DATABASE_URL before deploying wwatch";
   }

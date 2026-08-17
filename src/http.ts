@@ -1,11 +1,12 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { asSiteId, parseRepairTarget, parseUpdateTarget } from "./domain.js";
 import { Fleet } from "./fleet.js";
 import { helperPluginFile } from "./helper.js";
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const SESSION_PURPOSE = "wwatch-session-v1";
+const SESSION_PURPOSE = "wwatch-session-v2";
+const NONCE_BYTES = 16;
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -20,7 +21,12 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = ""): Hono {
+export function createApp(
+  fleet: Fleet,
+  dashboardPassword = "",
+  cronSecret = "",
+  sessionKey: Buffer = sessionKeyFromEnv(),
+): Hono {
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -65,7 +71,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return;
     }
     const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
-    if (cookie && sessionCookieValid(cookie, dashboardPassword)) {
+    if (cookie && sessionCookieValid(cookie, sessionKey)) {
       await next();
       return;
     }
@@ -220,7 +226,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return c.json({ error: "wrong password" }, 401);
     }
     await fleet.clearLoginFailures(ip);
-    c.header("set-cookie", watchCookie(sessionToken(dashboardPassword), c, Math.floor(SESSION_TTL_MS / 1000)));
+    c.header("set-cookie", watchCookie(sessionToken(sessionKey), c, Math.floor(SESSION_TTL_MS / 1000)));
     return c.json({ ok: true });
   });
 
@@ -284,22 +290,40 @@ async function readJsonObject(c: { req: { json: () => Promise<unknown> } }): Pro
   }
 }
 
-export function sessionToken(password: string, issuedAt = Date.now()): string {
-  const issued = String(issuedAt);
-  const mac = createHmac("sha256", password).update(`${SESSION_PURPOSE}:${issued}`).digest("base64url");
-  return `${issued}.${mac}`;
+/**
+ * The session MAC key. It must never be the board password: the cookie carries both the signed
+ * message and its MAC, so a password-keyed cookie is an offline guessing target for whoever picks
+ * one up. WATCH_SECRET is high-entropy server-side key material instead. With none set the key is
+ * random per process, which keeps dev safe at the cost of sessions ending on restart.
+ */
+export function sessionKeyFromEnv(env: NodeJS.Dict<string> = process.env): Buffer {
+  const secret = env.WATCH_SECRET?.trim();
+  if (!secret) {
+    return randomBytes(32);
+  }
+  return createHash("sha256").update("wwatch-session-key-v1").update(secret).digest();
 }
 
-export function sessionCookieValid(cookie: string, password: string, now = Date.now()): boolean {
-  const dot = cookie.indexOf(".");
-  if (dot <= 0) {
+export function sessionToken(
+  key: Buffer,
+  issuedAt = Date.now(),
+  nonce = randomBytes(NONCE_BYTES).toString("base64url"),
+): string {
+  const issued = String(issuedAt);
+  const mac = createHmac("sha256", key).update(`${SESSION_PURPOSE}:${issued}:${nonce}`).digest("base64url");
+  return `${issued}.${nonce}.${mac}`;
+}
+
+export function sessionCookieValid(cookie: string, key: Buffer, now = Date.now()): boolean {
+  const [issued, nonce, mac] = cookie.split(".");
+  if (!issued || !nonce || !mac) {
     return false;
   }
-  const issuedAt = Number(cookie.slice(0, dot));
+  const issuedAt = Number(issued);
   if (!Number.isFinite(issuedAt) || issuedAt > now + 60_000 || now - issuedAt > SESSION_TTL_MS) {
     return false;
   }
-  return secretsEqual(cookie, sessionToken(password, issuedAt));
+  return secretsEqual(cookie, sessionToken(key, issuedAt, nonce));
 }
 
 function watchCookie(

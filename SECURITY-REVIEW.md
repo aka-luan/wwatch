@@ -2,7 +2,8 @@
 
 Manual review against the OWASP Top 10 (2021), covering the Hono/TypeScript service in
 `src/`, the React dashboard in `web/`, and the WordPress helper plugin in `plugin/wwatch.php`.
-No changes were made to application code; this file records the findings.
+Findings 1 and 2 have been fixed in this branch; the rest are recorded here with locations and
+suggested fixes.
 
 Scope reviewed: `src/http.ts`, `src/index.ts`, `src/server.ts`, `src/store.ts`, `src/wrap.ts`,
 `src/fleet.ts`, `src/scan.ts`, `src/helper.ts`, `src/domain.ts`, `src/alert.ts`, `src/zip.ts`,
@@ -10,19 +11,19 @@ Scope reviewed: `src/http.ts`, `src/index.ts`, `src/server.ts`, `src/store.ts`, 
 
 ## Summary
 
-| # | Finding | OWASP | Severity |
-|---|---------|-------|----------|
-| 1 | Session cookie is an HMAC keyed by the dashboard password | A02, A07 | High |
-| 2 | Stored Application Passwords are wrapped with a key derived from that same password by one SHA-256 | A02 | High |
-| 3 | Helper plugin gates updates/repairs on `manage_options` (multisite privilege escalation) | A01 | Medium |
-| 4 | Scanner will fetch private/internal addresses (authenticated SSRF) | A10 | Medium |
-| 5 | Login rate limit keys on a client-controlled `X-Forwarded-For` | A07 | Medium |
-| 6 | Logout does not revoke the session server-side | A07 | Low |
-| 7 | State-changing endpoints rely on `SameSite=Lax` alone | A01 | Low |
-| 8 | Internal error text is returned to the client | A05 | Low |
-| 9 | Auto-login token travels in the URL query string | A07 | Low |
-| 10 | `login_failures` grows without pruning | A05 | Info |
-| 11 | Helper zip is served unsigned, with no integrity check | A08 | Info |
+| # | Finding | OWASP | Severity | Status |
+|---|---------|-------|----------|--------|
+| 1 | Session cookie is an HMAC keyed by the dashboard password | A02, A07 | High | **Fixed** |
+| 2 | Stored Application Passwords are wrapped with a key derived from that same password by one SHA-256 | A02 | High | **Fixed** |
+| 3 | Helper plugin gates updates/repairs on `manage_options` (multisite privilege escalation) | A01 | Medium | Open |
+| 4 | Scanner will fetch private/internal addresses (authenticated SSRF) | A10 | Medium | Open |
+| 5 | Login rate limit keys on a client-controlled `X-Forwarded-For` | A07 | Medium | Open |
+| 6 | Logout does not revoke the session server-side | A07 | Low | Open |
+| 7 | State-changing endpoints rely on `SameSite=Lax` alone | A01 | Low | Open |
+| 8 | Internal error text is returned to the client | A05 | Low | Open |
+| 9 | Auto-login token travels in the URL query string | A07 | Low | Open |
+| 10 | `login_failures` grows without pruning | A05 | Info | Open |
+| 11 | Helper zip is served unsigned, with no integrity check | A08 | Info | Open |
 
 Checked and found sound: SQL is fully parameterized (`src/store.ts`, and `$wpdb->prepare` with
 placeholders in `wwatch_autoload_bytes`); no XSS sinks in the dashboard (no
@@ -36,7 +37,7 @@ applied to every response; password comparison is constant-time over SHA-256 dig
 
 ## Findings
 
-### 1. Session cookie is an HMAC keyed by the dashboard password — A02/A07, High
+### 1. Session cookie is an HMAC keyed by the dashboard password — A02/A07, High — FIXED
 
 `src/http.ts`: `sessionToken()` is `issuedAt + "." + HMAC-SHA256(password, purpose:issuedAt)`.
 The cookie therefore contains a plaintext-known message and its MAC under a key that *is* the
@@ -46,11 +47,14 @@ password at full GPU speed, with no rate limit involved. Because that password i
 default key material for finding 2, cracking it yields every stored WordPress Application
 Password.
 
-Fix: key the HMAC with a separate high-entropy server secret (`WATCH_SECRET`, generated, not
-the login password), and put a random session id in the cookie rather than deriving the value
-from the password.
+Fixed: `sessionKeyFromEnv()` derives the MAC key from `WATCH_SECRET`, never from the board
+password, and falls back to 32 random bytes per process when it is unset (dev only — sessions
+end on restart). The cookie is now `issuedAt.nonce.MAC` with a 16-byte random nonce, so two
+logins in the same millisecond produce different cookies and the cookie is no longer a
+password-derived value. `createApp()` takes the key as an argument, so deployments and tests
+supply it explicitly.
 
-### 2. Credential wrapping key derives from the login password via one SHA-256 — A02, High
+### 2. Credential wrapping key derives from the login password via one SHA-256 — A02, High — FIXED
 
 `src/wrap.ts`: `wrapSecretFromEnv()` falls back to `DASHBOARD_PASSWORD`, and `keyFromSecret()`
 is a single unsalted SHA-256. AES-256-GCM itself is used correctly (random 12-byte IV, auth
@@ -58,9 +62,12 @@ tag stored and verified), but the key is only as strong as a human-chosen passwo
 one fast hash. The plaintext being protected is an administrator Application Password for every
 monitored WordPress site.
 
-Fix: require `WATCH_SECRET` to be set independently in any deployment (add it to
-`deployConfigError()` in `src/index.ts` alongside the Turso vars), and stretch it with scrypt
-or PBKDF2 with a stored salt instead of raw SHA-256.
+Fixed: `deployConfigError()` now refuses to serve without `WATCH_SECRET`, and `src/wrap.ts`
+writes a `v2:` format — per-row 16-byte salt, scrypt (N=16384, r=8, p=1) to a 32-byte key, then
+AES-256-GCM. Derived keys are memoised (capped at 64) so the 2.5-second dashboard poll does not
+pay a scrypt per site per request. `v1:` rows are still readable, and `Store` reseals anything
+that is not current-format-under-the-current-secret on startup, so setting `WATCH_SECRET` on an
+existing board migrates its rows instead of locking them out.
 
 ### 3. Helper plugin authorizes updates and repairs with `manage_options` — A01, Medium
 
@@ -109,12 +116,12 @@ first token).
 ### 6. Logout does not revoke the session — A07, Low
 
 `POST /api/logout` clears the cookie in the browser only. Any copy of the cookie stays valid
-for the full 7-day `SESSION_TTL_MS`; there is no server-side session record to delete. Rotating
-`DASHBOARD_PASSWORD` is currently the only revocation, and it simultaneously changes the
-credential-wrapping key (finding 2).
+for the full 7-day `SESSION_TTL_MS`; there is no server-side session record to delete. Since
+finding 1, rotating `WATCH_SECRET` invalidates every outstanding cookie at once — that is the
+only revocation there is, and it forces a rewrap of stored credentials on the next start.
 
-Fix: fold a stored, rotatable session id (or a `not-before` timestamp) into validation so
-logout and forced sign-out actually invalidate outstanding cookies.
+Fix: persist the cookie's nonce as a session record (it is already random per login) and delete
+it on logout, or keep a `not-before` timestamp that logout advances.
 
 ### 7. No CSRF token on state-changing routes — A01, Low
 

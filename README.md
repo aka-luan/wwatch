@@ -32,7 +32,7 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 3. Set these environment variables on the Vercel project:
 
    - `DASHBOARD_PASSWORD` — the password you type on `/login.html`. Sessions last 7 days.
-   - `WATCH_SECRET` — optional. Encrypts Application Passwords in Turso. If unset, `DASHBOARD_PASSWORD` is the wrapping key. Set this if you want to change the board password later without rewriting site credentials.
+   - `WATCH_SECRET` — **required**. 32+ random bytes (`openssl rand -base64 32`), not the board password. It signs board sessions and encrypts Application Passwords in Turso. Keeping it separate means the board password can change without rewriting site credentials, and a stolen session cookie gives nothing to guess against.
    - `TURSO_DATABASE_URL` — `libsql://...`
    - `TURSO_AUTH_TOKEN`
    - `CRON_SECRET` — Vercel sends this as `Authorization: Bearer …` on the daily scan. Without it the board password blocks the cron.
@@ -43,9 +43,11 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 npx vercel
 ```
 
-Application Passwords for your WordPress sites live in Turso, encrypted at rest when `WATCH_SECRET` or `DASHBOARD_PASSWORD` is set. Treat that database like production secrets.
+Application Passwords for your WordPress sites live in Turso, encrypted at rest with AES-256-GCM under a per-row scrypt key derived from `WATCH_SECRET`. Treat that database like production secrets.
 
-The board cookie is an HMAC of the dashboard password with a 7-day lifetime. **Log out** clears it.
+The board cookie is a random nonce and issue time signed with `WATCH_SECRET`, good for 7 days. **Log out** clears it. Locally, with no `WATCH_SECRET` set, the signing key is random per process, so restarting the dev server ends open sessions.
+
+Upgrading a board that ran without `WATCH_SECRET`: set it, then start the app once. Rows sealed under the old board password are read with it one last time and resealed under the new secret. Keep `DASHBOARD_PASSWORD` unchanged across that first start.
 
 ## Connect a site
 
