@@ -12,7 +12,7 @@ function LoginForm() {
   return (
     <div className="modal">
       <form
-        className="card"
+        className="dialog-shell"
         onSubmit={(event) => {
           event.preventDefault();
           const password = new FormData(event.currentTarget).get("password");

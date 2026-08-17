@@ -1,7 +1,15 @@
+/*
+ * Layer order must be declared before the imports: @import ... layer(utilities) would
+ * otherwise register utilities first and the @layer base block at the bottom of this
+ * file would win over every border-color utility (border-transparent, the tone rails).
+ */
+@layer theme, base, components, utilities;
+
 @import "tailwindcss/theme.css" layer(theme);
 @import "tailwindcss/utilities.css" layer(utilities);
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
+@import "@fontsource-variable/inter";
 
 @custom-variant dark (&:is(.dark *));
 
@@ -38,7 +46,7 @@
   --radius-lg: calc(var(--radius) * 1.5);
   --radius-xl: calc(var(--radius) * 2);
   --radius-xs: calc(var(--radius) * 0.5);
-  --font-sans: ui-sans-serif, system-ui, sans-serif;
+  --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
   --font-heading: var(--font-sans);
   --color-sidebar-ring: var(--sidebar-ring);
@@ -59,51 +67,60 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
-:root {
-  color-scheme: dark;
-  --background: #0e1114;
+/*
+ * The app is dark-only: <html class="dark"> is hardcoded in both entries and the dark
+ * custom variant above keys off that class, so both selectors must carry the same
+ * palette. They share one block so the values cannot drift apart.
+ */
+:root,
+.dark {
+  --background: #090d12;
   --foreground: #e6edf3;
-  --card: #151a1f;
+  --card: #0f151c;
   --card-foreground: #e6edf3;
-  --popover: #151a1f;
+  --popover: #0f151c;
   --popover-foreground: #e6edf3;
   --primary: #e6edf3;
-  --primary-foreground: #0e1114;
-  --secondary: #1b2026;
+  --primary-foreground: #090d12;
+  --secondary: #141b23;
   --secondary-foreground: #e6edf3;
-  --muted: #1b2026;
-  --muted-foreground: #8b949e;
-  --accent: #1b2026;
+  --muted: #141b23;
+  --muted-foreground: #8a96a6;
+  --accent: #141b23;
   --accent-foreground: #e6edf3;
-  --destructive: #ff5d5d;
-  --destructive-foreground: #ff5d5d;
-  --warning: #f5b942;
-  --warning-foreground: #f5b942;
-  --success: #3dd68c;
-  --success-foreground: #3dd68c;
-  --border: #2a3138;
-  --border-strong: #3a434c;
-  --hairline: #1e242a;
-  --raised: #101418;
-  --selected: #14181d;
-  --input: #2a3138;
-  --ring: #6cb6ff;
-  --radius: 0.375rem;
-  --gutter: 32px;
-  --board-max: 74rem;
-  --chart-1: #6cb6ff;
-  --chart-2: #3dd68c;
-  --chart-3: #f5b942;
-  --chart-4: #ff5d5d;
-  --chart-5: #8b949e;
-  --sidebar: #151a1f;
+  --destructive: #f2555a;
+  --destructive-foreground: #f2555a;
+  --warning: #e5a33c;
+  --warning-foreground: #e5a33c;
+  --success: #35c88a;
+  --success-foreground: #35c88a;
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.14);
+  --hairline: rgba(255, 255, 255, 0.05);
+  --raised: #0c1219;
+  --selected: #141b23;
+  --input: rgba(255, 255, 255, 0.12);
+  --ring: #5b9df9;
+  --chart-1: #5b9df9;
+  --chart-2: #35c88a;
+  --chart-3: #e5a33c;
+  --chart-4: #f2555a;
+  --chart-5: #8a96a6;
+  --sidebar: #0f151c;
   --sidebar-foreground: #e6edf3;
   --sidebar-primary: #e6edf3;
-  --sidebar-primary-foreground: #0e1114;
-  --sidebar-accent: #1b2026;
+  --sidebar-primary-foreground: #090d12;
+  --sidebar-accent: #141b23;
   --sidebar-accent-foreground: #e6edf3;
-  --sidebar-border: #2a3138;
-  --sidebar-ring: #6cb6ff;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
+  --sidebar-ring: #5b9df9;
+}
+
+:root {
+  color-scheme: dark;
+  --radius: 0.5rem;
+  --gutter: 32px;
+  --board-max: 74rem;
 }
 
 * {
@@ -121,7 +138,10 @@ body {
   min-height: 100dvh;
   background: var(--background);
   color: var(--foreground);
-  font: 14px/1.45 var(--font-sans);
+  font: 14px/1.5 var(--font-sans);
+  letter-spacing: -0.011em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 #root {
@@ -134,7 +154,7 @@ body {
   margin-inline: auto;
 }
 
-/* The fleet table needs nine columns; below the app's 840px breakpoint it becomes cards. */
+/* The fleet table needs nine columns; below the 840px breakpoint it becomes cards. */
 .fleet-mobile {
   display: none;
 }
@@ -154,17 +174,16 @@ body {
   justify-content: space-between;
   align-items: end;
   gap: 8px 16px;
-  padding: 20px var(--gutter) 14px;
+  padding: 20px var(--gutter) 16px;
   padding-top: max(20px, env(safe-area-inset-top));
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
-  border-bottom: 1px solid var(--border);
 }
 
 .mark {
   margin: 0;
-  font: 600 17px/1.15 var(--font-mono);
-  letter-spacing: -0.03em;
+  font: 600 17px/1.15 var(--font-sans);
+  letter-spacing: -0.02em;
 }
 
 .sub {
@@ -191,7 +210,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 8px;
-  padding: 12px var(--gutter) 0;
+  padding: 8px var(--gutter);
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
 }
@@ -250,16 +269,13 @@ body {
   .wwatch-spinner-blade:nth-child(12) {
     opacity: 0.85;
   }
-}
 
-.empty-compact {
-  margin-top: 16px;
-  margin-bottom: 16px;
-}
-
-.empty-compact h2 {
-  font-size: 15px;
-  font-weight: 600;
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
 }
 
 .site-list {
@@ -268,20 +284,6 @@ body {
 
 .site-list button {
   -webkit-tap-highlight-color: transparent;
-}
-
-.empty {
-  margin: 48px var(--gutter);
-  margin-left: max(var(--gutter), env(safe-area-inset-left));
-  margin-right: max(var(--gutter), env(safe-area-inset-right));
-  color: var(--muted-foreground);
-  max-width: 36rem;
-}
-
-.empty h2 {
-  color: var(--foreground);
-  font-size: 18px;
-  font-weight: 600;
 }
 
 .host {
@@ -301,17 +303,20 @@ body {
   z-index: 30;
 }
 
-.card {
+/* Login and modal shell. Named apart from the Card component in components/ui/card.tsx. */
+.dialog-shell {
   width: min(440px, 100%);
   background: var(--card);
   border: 1px solid var(--border);
   border-radius: calc(var(--radius) * 1.5);
-  padding: 20px;
+  padding: 24px;
 }
 
-.card h2 {
+.dialog-shell h2 {
   margin: 0 0 8px;
   font-size: 18px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
 }
 
 .help {
@@ -333,10 +338,7 @@ label {
   margin: 0 0 10px;
   color: var(--muted-foreground);
   font-size: 12px;
-}
-
-.mono {
-  font-family: var(--font-mono);
+  font-weight: 500;
 }
 
 a {
@@ -367,17 +369,8 @@ a {
     min-height: 44px;
   }
 
-  .board-toolbar {
-    padding-top: 10px;
-  }
-
   .site-list {
     margin-bottom: max(32px, env(safe-area-inset-bottom));
-  }
-
-  .empty {
-    margin-top: 32px;
-    margin-bottom: 32px;
   }
 
   .modal {
@@ -387,7 +380,7 @@ a {
     place-items: start stretch;
   }
 
-  .card {
+  .dialog-shell {
     width: 100%;
     max-width: 440px;
     margin-inline: auto;
@@ -411,49 +404,6 @@ a {
 
 [data-slot="finding-row"] [data-slot="button"] {
   min-height: 28px;
-}
-
-.dark {
-  --background: #0e1114;
-  --foreground: #e6edf3;
-  --card: #151a1f;
-  --card-foreground: #e6edf3;
-  --popover: #151a1f;
-  --popover-foreground: #e6edf3;
-  --primary: #e6edf3;
-  --primary-foreground: #0e1114;
-  --secondary: #1b2026;
-  --secondary-foreground: #e6edf3;
-  --muted: #1b2026;
-  --muted-foreground: #8b949e;
-  --accent: #1b2026;
-  --accent-foreground: #e6edf3;
-  --destructive: #ff5d5d;
-  --destructive-foreground: #ff5d5d;
-  --warning: #f5b942;
-  --warning-foreground: #f5b942;
-  --success: #3dd68c;
-  --success-foreground: #3dd68c;
-  --border: #2a3138;
-  --border-strong: #3a434c;
-  --hairline: #1e242a;
-  --raised: #101418;
-  --selected: #14181d;
-  --input: #2a3138;
-  --ring: #6cb6ff;
-  --chart-1: #6cb6ff;
-  --chart-2: #3dd68c;
-  --chart-3: #f5b942;
-  --chart-4: #ff5d5d;
-  --chart-5: #8b949e;
-  --sidebar: #151a1f;
-  --sidebar-foreground: #e6edf3;
-  --sidebar-primary: #e6edf3;
-  --sidebar-primary-foreground: #0e1114;
-  --sidebar-accent: #1b2026;
-  --sidebar-accent-foreground: #e6edf3;
-  --sidebar-border: #2a3138;
-  --sidebar-ring: #6cb6ff;
 }
 
 @layer base {

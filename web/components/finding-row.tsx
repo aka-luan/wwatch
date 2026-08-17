@@ -4,6 +4,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import type { FindingTone } from "@/lib/finding-groups";
 import type { SiteStatus } from "@/lib/status";
@@ -60,7 +61,7 @@ export function FindingRow({
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
           <p className="min-w-0 font-medium leading-5 [overflow-wrap:anywhere]">{title}</p>
           {detail ? (
-            <p className="mono shrink-0 text-[13px] leading-5 text-muted-foreground">{detail}</p>
+            <p className="shrink-0 font-mono text-[13px] leading-5 text-muted-foreground">{detail}</p>
           ) : null}
         </div>
         {action ? <div className="flex shrink-0 items-center self-end sm:self-auto">{action}</div> : null}
@@ -74,9 +75,7 @@ export function FindingRow({
         className="group/finding flex items-start gap-2 border-t border-border py-2.5 text-[13px] leading-5"
         data-slot="finding-row"
       >
-        <span className="mt-0.5 shrink-0 text-[11px] font-medium tracking-wide text-muted-foreground uppercase">
-          Info
-        </span>
+        <StatusDot tone="info" decorative className="mt-1.5 size-1.5" />
         <div className="min-w-0 flex-1">
           <p className="text-muted-foreground [overflow-wrap:anywhere]">{title}</p>
           {explanation ? (
@@ -171,9 +170,12 @@ export function EmptyNote({
   tone?: "neutral" | "positive";
 }) {
   return (
-    <p className="flex items-center gap-2 py-2.5 text-sm text-muted-foreground">
-      {tone === "positive" ? <CircleCheckIcon className="size-4 text-success" aria-hidden /> : null}
-      {children}
-    </p>
+    <EmptyState
+      size="inline"
+      title={children}
+      icon={
+        tone === "positive" ? <CircleCheckIcon className="size-4 text-success" aria-hidden /> : null
+      }
+    />
   );
 }

@@ -3,22 +3,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/status-dot";
 import { ago } from "@/lib/format";
 import { fleetTable, TLS_WARN_DAYS, type FleetRow } from "@/lib/fleet-table";
+import { TONE_RAIL, TONE_TEXT, toneOf } from "@/lib/tone";
 import type { OverviewRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const RAIL: Record<FleetRow["status"], string> = {
-  critical: "border-l-destructive",
-  attention: "border-l-warning",
-  healthy: "border-l-success",
-  unknown: "border-l-border",
-};
-
-const STATUS_TEXT: Record<FleetRow["status"], string> = {
-  critical: "font-semibold text-destructive",
-  attention: "font-semibold text-warning",
-  healthy: "text-muted-foreground",
-  unknown: "text-muted-foreground",
-};
 
 /**
  * The narrow-viewport rendering of the fleet — the same rows and the same ordering as the
@@ -56,14 +43,14 @@ export function FleetCards({
             className={cn(
               "flex w-full items-center gap-3 border-b border-hairline border-l-[3px] px-4 py-3 text-left outline-none",
               "hover:bg-selected focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
-              RAIL[row.status],
+              TONE_RAIL[toneOf(row.status)],
             )}
           >
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
                 <StatusDot status={row.status} decorative className="size-[7px]" />
                 <span className="truncate text-[14px] font-semibold text-foreground">{row.name}</span>
-                <span className={cn("shrink-0 text-[12px]", STATUS_TEXT[row.status])}>{row.statusLabel}</span>
+                <span className={cn("shrink-0 text-[12px]", TONE_TEXT[toneOf(row.status)])}>{row.statusLabel}</span>
               </span>
               <span className="mt-0.5 block truncate font-mono text-[12px] text-muted-foreground">
                 {row.hostname}

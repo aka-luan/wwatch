@@ -227,7 +227,7 @@ export function AddSiteDialog({
 
 function ApplicationPasswordHelp() {
   return (
-    <ol className="list-decimal space-y-1.5 rounded-lg bg-muted/40 py-2.5 pr-3 pl-7 text-[13px] leading-5 text-muted-foreground marker:text-muted-foreground/70 ring-1 ring-border/70 ring-inset">
+    <ol className="list-decimal space-y-1.5 rounded-lg bg-muted/40 py-2.5 pr-3 pl-7 text-[13px] leading-5 text-muted-foreground marker:text-muted-foreground/70 ring-1 ring-border ring-inset">
       {COPY.addSite.steps.map((step) => (
         <li key={step}>{step}</li>
       ))}

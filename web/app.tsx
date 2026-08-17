@@ -9,6 +9,7 @@ import { FleetStatStrip } from "@/components/fleet-stat-strip";
 import { FleetTable } from "@/components/fleet-table";
 import { ProcessingIndicator } from "@/components/processing-indicator";
 import { SiteFilters } from "@/components/site-filters";
+import { EmptyState } from "@/components/ui/empty-state";
 import { SitePage as SitePageView } from "@/components/site-page";
 import { Button } from "@/components/ui/button";
 import {
@@ -315,7 +316,7 @@ function EditSiteDialog({
             Name
             <Input name="name" defaultValue={page.site.name} />
           </label>
-          <p className="help mono">{page.site.origin}</p>
+          <p className="help font-mono">{page.site.origin}</p>
           <label>
             WP username
             <Input name="username" defaultValue={page.username} autoComplete="username" />
@@ -341,26 +342,30 @@ function EditSiteDialog({
 
 function EmptyFleet() {
   return (
-    <div className="empty">
-      <h2>No sites yet</h2>
-      <p>
-        Add a WordPress site you already admin. wwatch talks to it with an Application Password from
-        Users → Profile. Scans install nothing on the site. WP Admin from the site page needs the
-        optional wwatch plugin.
-      </p>
-    </div>
+    <EmptyState
+      className="mx-(--gutter) my-12"
+      title="No sites yet"
+      description={
+        <>
+          Add a WordPress site you already admin. wwatch talks to it with an Application Password
+          from Users → Profile. Scans install nothing on the site. WP Admin from the site page needs
+          the optional wwatch plugin.
+        </>
+      }
+    />
   );
 }
 
 function FilteredEmpty({ filters, onClear }: { filters: SiteFilterState; onClear: () => void }) {
   return (
-    <div className="empty empty-compact">
-      <h2>{filterEmptyHeading(filters)}</h2>
-      <p>
+    <EmptyState
+      className="mx-(--gutter) my-8"
+      title={filterEmptyHeading(filters)}
+      action={
         <Button type="button" variant="link" className="h-auto px-0" onClick={onClear}>
           Clear filters
         </Button>
-      </p>
-    </div>
+      }
+    />
   );
 }
