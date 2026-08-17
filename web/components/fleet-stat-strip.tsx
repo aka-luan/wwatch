@@ -1,7 +1,11 @@
-import { Metric, MetricLabel, MetricValue, metricRail } from "@/components/metric";
+import type { ReactNode } from "react";
+
+import { MetricLabel, MetricValue } from "@/components/metric";
+import { StatusDot } from "@/components/status-dot";
+import { cardVariants } from "@/components/ui/card";
 import { fleetTable } from "@/lib/fleet-table";
 import type { PrimaryStatusFilter, SiteFilterState } from "@/lib/site-filters";
-import { TONE_FROM_STATUS, type Tone } from "@/lib/tone";
+import { TONE_FROM_STATUS, TONE_RAIL_STRONG, type Tone } from "@/lib/tone";
 import type { OverviewRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -13,8 +17,9 @@ type Counter = {
 };
 
 /**
- * The fleet in four numbers, three of which double as the primary filter. They read as
- * text with an underline when active, not as buttons.
+ * The fleet in four numbers, three of which double as the primary filter. Each is a
+ * compact card: a status dot, the count, and a muted label. Color is an accent on the
+ * dot and on the border of the active card, never a filled surface.
  */
 export function FleetStatStrip({
   sites,
@@ -36,30 +41,42 @@ export function FleetStatStrip({
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 bg-raised px-(--gutter) py-3">
-      {counters.map((counter) =>
-        counter.filter ? (
-          <FilterCounter
-            key={counter.label}
-            counter={counter}
-            active={state.status === counter.filter}
-            onClick={() =>
-              onChange({
-                ...state,
-                status: state.status === counter.filter ? "all" : (counter.filter as PrimaryStatusFilter),
-              })
-            }
-          />
-        ) : (
-          <Metric key={counter.label} value={counter.count} label={counter.label} tone={counter.tone} />
-        ),
-      )}
-      {filtersSlot ? <div className="ml-auto">{filtersSlot}</div> : null}
+    <div className="px-(--gutter) py-3">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {counters.map((counter) =>
+          counter.filter ? (
+            <FilterCounterCard
+              key={counter.label}
+              counter={counter}
+              active={state.status === counter.filter}
+              onClick={() =>
+                onChange({
+                  ...state,
+                  status: state.status === counter.filter ? "all" : (counter.filter as PrimaryStatusFilter),
+                })
+              }
+            />
+          ) : (
+            <MetricCard key={counter.label} counter={counter} />
+          ),
+        )}
+      </div>
+      {filtersSlot ? <div className="mt-2">{filtersSlot}</div> : null}
     </div>
   );
 }
 
-function FilterCounter({
+const CARD = "gap-1 px-3.5 py-3";
+
+function MetricCard({ counter }: { counter: Counter }) {
+  return (
+    <div className={cn(cardVariants(), CARD)} data-slot="card">
+      <CounterBody counter={counter} />
+    </div>
+  );
+}
+
+function FilterCounterCard({
   counter,
   active,
   onClick,
@@ -71,16 +88,30 @@ function FilterCounter({
   return (
     <button
       type="button"
+      data-slot="card"
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "-mb-3 flex cursor-pointer flex-col items-start gap-1 rounded-sm bg-transparent pb-3 text-left",
-        "transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
-        metricRail(counter.tone, active),
+        cardVariants(),
+        CARD,
+        "cursor-pointer text-left transition-colors",
+        "hover:bg-selected outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        active && cn("bg-selected", TONE_RAIL_STRONG[counter.tone]),
       )}
     >
-      <MetricValue tone={counter.tone}>{counter.count}</MetricValue>
-      <MetricLabel active={active}>{counter.label}</MetricLabel>
+      <CounterBody counter={counter} active={active} />
     </button>
+  );
+}
+
+function CounterBody({ counter, active }: { counter: Counter; active?: boolean }): ReactNode {
+  return (
+    <>
+      <span className="flex items-center gap-2">
+        <StatusDot tone={counter.tone} decorative className="size-1.5" />
+        <MetricValue tone={counter.tone}>{counter.count}</MetricValue>
+      </span>
+      <MetricLabel active={active}>{counter.label}</MetricLabel>
+    </>
   );
 }

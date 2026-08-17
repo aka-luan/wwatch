@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { TONE_ACCENT, TONE_RAIL_STRONG, type Tone } from "@/lib/tone";
+import { TONE_ACCENT, type Tone } from "@/lib/tone";
 import { cn } from "@/lib/utils";
 
 type MetricProps = {
@@ -47,9 +47,4 @@ export function MetricLabel({ children, active }: { children: ReactNode; active?
       {children}
     </span>
   );
-}
-
-/** The underline a metric grows when it doubles as an active filter. */
-export function metricRail(tone: Tone, active: boolean): string {
-  return cn("border-b-2", active ? TONE_RAIL_STRONG[tone] : "border-transparent");
 }

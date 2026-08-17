@@ -10,7 +10,9 @@ function Checkbox({ className, ...props }: CheckboxPrimitive.Root.Props) {
     <CheckboxPrimitive.Root
       data-slot="checkbox"
       className={cn(
-        "peer size-[13px] shrink-0 rounded-[3px] border border-input bg-transparent transition-colors outline-none",
+        // inline-flex, not the user-agent display: without Tailwind's preflight a bare
+        // <button> stays inline and the 13px box collapses to nothing.
+        "peer inline-flex size-[13px] shrink-0 items-center justify-center rounded-[3px] border border-input bg-transparent transition-colors outline-none",
         "focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50",
         "disabled:cursor-not-allowed disabled:opacity-50",
         "data-[checked]:border-ring data-[checked]:bg-ring data-[checked]:text-background",
