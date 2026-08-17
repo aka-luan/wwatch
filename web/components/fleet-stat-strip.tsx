@@ -1,6 +1,7 @@
-import { Button } from "@/components/ui/button";
+import { Metric, MetricLabel, MetricValue, metricRail } from "@/components/metric";
 import { fleetTable } from "@/lib/fleet-table";
 import type { PrimaryStatusFilter, SiteFilterState } from "@/lib/site-filters";
+import { TONE_FROM_STATUS, type Tone } from "@/lib/tone";
 import type { OverviewRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -8,13 +9,12 @@ type Counter = {
   filter: PrimaryStatusFilter | null;
   label: string;
   count: number;
-  tone: string;
-  rail: string;
+  tone: Tone;
 };
 
 /**
- * Mockup 1a's stat strip: the fleet's state in four numbers, each of the three status
- * counters doubling as the primary filter.
+ * The fleet in four numbers, three of which double as the primary filter. They read as
+ * text with an underline when active, not as buttons.
  */
 export function FleetStatStrip({
   sites,
@@ -29,14 +29,14 @@ export function FleetStatStrip({
 }) {
   const { counts } = fleetTable(sites);
   const counters: Counter[] = [
-    { filter: "critical", label: "Critical", count: counts.critical, tone: "text-destructive", rail: "border-destructive" },
-    { filter: "attention", label: "Warning", count: counts.attention, tone: "text-warning", rail: "border-warning" },
-    { filter: "healthy", label: "Healthy", count: counts.healthy, tone: "text-success", rail: "border-success" },
-    { filter: null, label: "Pending updates", count: counts.updates, tone: "text-foreground", rail: "border-foreground" },
+    { filter: "critical", label: "Critical", count: counts.critical, tone: TONE_FROM_STATUS.critical },
+    { filter: "attention", label: "Warning", count: counts.attention, tone: TONE_FROM_STATUS.attention },
+    { filter: "healthy", label: "Healthy", count: counts.healthy, tone: TONE_FROM_STATUS.healthy },
+    { filter: null, label: "Pending updates", count: counts.updates, tone: "neutral" },
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 border-b border-border bg-raised px-5 py-3">
+    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 bg-raised px-(--gutter) py-3">
       {counters.map((counter) =>
         counter.filter ? (
           <FilterCounter
@@ -51,12 +51,7 @@ export function FleetStatStrip({
             }
           />
         ) : (
-          <div key={counter.label} className="flex flex-col gap-1">
-            <span className={cn("font-mono text-[22px] leading-none font-semibold tabular-nums", counter.tone)}>
-              {counter.count}
-            </span>
-            <span className="text-[11.5px] text-muted-foreground">{counter.label}</span>
-          </div>
+          <Metric key={counter.label} value={counter.count} label={counter.label} tone={counter.tone} />
         ),
       )}
       {filtersSlot ? <div className="ml-auto">{filtersSlot}</div> : null}
@@ -74,22 +69,18 @@ function FilterCounter({
   onClick: () => void;
 }) {
   return (
-    <Button
+    <button
       type="button"
-      variant="ghost"
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "-mb-3 h-auto flex-col items-start gap-1 rounded-none border-b-2 border-transparent px-0 pb-3 hover:bg-transparent",
-        active && counter.rail,
+        "-mb-3 flex cursor-pointer flex-col items-start gap-1 rounded-sm bg-transparent pb-3 text-left",
+        "transition-colors outline-none focus-visible:ring-3 focus-visible:ring-ring/50",
+        metricRail(counter.tone, active),
       )}
     >
-      <span className={cn("font-mono text-[22px] leading-none font-semibold tabular-nums", counter.tone)}>
-        {counter.count}
-      </span>
-      <span className={cn("text-[11.5px] font-normal", active ? "text-foreground" : "text-muted-foreground")}>
-        {counter.label}
-      </span>
-    </Button>
+      <MetricValue tone={counter.tone}>{counter.count}</MetricValue>
+      <MetricLabel active={active}>{counter.label}</MetricLabel>
+    </button>
   );
 }

@@ -257,10 +257,10 @@ export function PluginRow({
               <StatusBadge status="attention" /> {plugin.version} → {update.latest}
             </>
           ) : (
-            <span className="mono"> {plugin.version}</span>
+            <span className="font-mono"> {plugin.version}</span>
           )}
         </p>
-        <p className="mono text-[12px] text-muted-foreground">{plugin.ref}</p>
+        <p className="font-mono text-[12px] text-muted-foreground">{plugin.ref}</p>
       </div>
       <div className="flex shrink-0 flex-wrap gap-2">
         {canUpdate && update ? (

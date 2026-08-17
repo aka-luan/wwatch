@@ -1,8 +1,7 @@
-import { useEffect, useRef } from "react";
-import { CheckIcon, ListFilterIcon, SearchIcon, XIcon } from "lucide-react";
+import { CheckIcon, ListFilterIcon, XIcon } from "lucide-react";
+import { SearchInput } from "@/components/search-input";
 import { badgeVariants } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover";
 import {
   SECONDARY_FILTERS,
@@ -29,46 +28,16 @@ export function SiteFilters({
 }) {
   const secondaryCounts = secondaryFilterCounts(sites);
   const active = filtersActive(state);
-  const searchRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key !== "/" || event.metaKey || event.ctrlKey || event.altKey || event.repeat) {
-        return;
-      }
-      if (isTypingTarget(event.target) || isOverlayOpen()) {
-        return;
-      }
-      event.preventDefault();
-      searchRef.current?.focus();
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
 
   return (
     <section className="site-filters" aria-label="Filter sites">
       <div className="flex flex-wrap items-center gap-2">
-        <div className="relative min-w-[12rem] flex-1">
-          <SearchIcon
-            className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            aria-hidden
-          />
-          <Input
-            ref={searchRef}
-            type="search"
-            value={state.query}
-            onChange={(event) => onChange({ ...state, query: event.target.value })}
-            placeholder="Search sites"
-            aria-label="Search sites by name or domain"
-            className="peer h-8 border-transparent bg-transparent pl-8 shadow-none md:pr-8 md:text-sm dark:bg-transparent"
-          />
-          {state.query ? null : (
-            <kbd className="pointer-events-none absolute top-1/2 right-2 hidden h-5 min-w-5 -translate-y-1/2 items-center justify-center rounded-sm border border-border/80 px-1 font-mono text-[11px] text-muted-foreground peer-focus:hidden md:inline-flex">
-              /
-            </kbd>
-          )}
-        </div>
+        <SearchInput
+          value={state.query}
+          onValueChange={(query) => onChange({ ...state, query })}
+          placeholder="Search sites"
+          label="Search sites by name or domain"
+        />
         <SecondaryFiltersPopover
           selected={state.secondary}
           counts={secondaryCounts}
@@ -118,7 +87,7 @@ function ActiveFilterBadge({ label, onRemove }: { label: string; onRemove: () =>
     <span
       className={cn(
         badgeVariants({ variant: "outline" }),
-        "h-6 gap-1 rounded-md pr-1 pl-2 text-xs font-medium ring-1 ring-border/80 ring-inset",
+        "h-6 gap-1 rounded-full pr-1 pl-2.5 text-xs font-medium",
       )}
     >
       <span>{label}</span>
@@ -205,21 +174,3 @@ function SecondaryFiltersPopover({
   );
 }
 
-function isTypingTarget(target: EventTarget | null): boolean {
-  if (!(target instanceof HTMLElement)) {
-    return false;
-  }
-  if (target.isContentEditable) {
-    return true;
-  }
-  const tag = target.tagName;
-  return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT";
-}
-
-function isOverlayOpen(): boolean {
-  return Boolean(
-    document.querySelector(
-      '[data-slot="dialog-overlay"][data-open], [data-slot="sheet-overlay"][data-open], [data-slot="alert-dialog-overlay"][data-open]',
-    ),
-  );
-}

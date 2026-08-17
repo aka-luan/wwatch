@@ -17,7 +17,9 @@ import { Spinner } from "@/components/ui/spinner";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyNote, FindingRow } from "@/components/finding-row";
 import { ScanTimeline } from "@/components/scan-timeline";
-import { StatusDot } from "@/components/status-dot";
+import { StatusBadge } from "@/components/status-badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { SectionHeading } from "@/components/ui/section-heading";
 import {
   HelperHelp,
   PluginRow,
@@ -34,15 +36,9 @@ import { helperCan } from "@/lib/helper";
 import { scanOperationOf } from "@/lib/scan-operation";
 import { effectiveStatus } from "@/lib/site-status";
 import { SITE_STATUS_LABEL, type SiteStatus } from "@/lib/status";
+import { TONE_ACCENT, toneOf } from "@/lib/tone";
 import type { SitePage as SitePageData } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const CHIP_TONE: Record<SiteStatus, string> = {
-  critical: "text-destructive bg-destructive/12 border-destructive/30",
-  attention: "text-warning bg-warning/12 border-warning/30",
-  healthy: "text-success bg-success/12 border-success/30",
-  unknown: "text-muted-foreground bg-muted border-border",
-};
 
 /**
  * Mockup 1c: the site as its own page. Findings lead, the plugin list moves behind a tab,
@@ -180,16 +176,15 @@ function SitePageBody({
       <header className="flex flex-wrap items-start gap-x-4 gap-y-3 px-(--gutter) pt-3 pb-4">
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2.5">
-            <StatusDot status={status} decorative className="size-[9px]" />
-            <h2 className="m-0 text-[22px] leading-tight font-semibold tracking-[-0.02em]">{page.site.name}</h2>
-            <span
-              className={cn(
-                "rounded border px-[7px] py-1 text-[11px] leading-none font-semibold tracking-[0.05em] uppercase",
-                CHIP_TONE[status],
-              )}
-            >
+            <SectionHeading
+              level="page"
+              as="h2"
+              title={page.site.name}
+              className="items-center"
+            />
+            <StatusBadge status={status}>
               {status === "attention" ? "Warning" : SITE_STATUS_LABEL[status]}
-            </span>
+            </StatusBadge>
           </div>
           <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[13px] text-muted-foreground">
             <span className="font-mono">{host(page.site.origin)}</span>
@@ -330,7 +325,7 @@ function SitePageBody({
               {updateItems.length ? (
                 <>
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <h3 className="m-0 text-sm font-medium">Pending updates</h3>
+                    <SectionHeading title="Pending updates" />
                     {canUpdate ? (
                       <Button
                         variant="outline"
@@ -401,7 +396,7 @@ function SitePageBody({
 
             <TabsContent value="settings" className="mt-3 space-y-4">
               <div>
-                <h3 className="m-0 text-sm font-medium">Credentials</h3>
+                <SectionHeading title="Credentials" />
                 <p className="mt-1 mb-2 max-w-[62ch] text-[13px] text-muted-foreground">
                   wwatch signs in as <span className="font-mono">{page.username}</span> with an Application
                   Password. Replace it if scans start failing with an authorization error.
@@ -411,7 +406,7 @@ function SitePageBody({
                 </Button>
               </div>
               <div>
-                <h3 className="m-0 text-sm font-medium">Remove site</h3>
+                <SectionHeading title="Remove site" />
                 <p className="mt-1 mb-2 max-w-[62ch] text-[13px] text-muted-foreground">
                   The site is removed from this board. WordPress itself is not changed.
                 </p>
@@ -424,12 +419,14 @@ function SitePageBody({
 
           <aside className="space-y-4">
             <AtAGlance page={page} />
-            <section className="rounded-md border border-border bg-card px-4 py-3.5">
-              <h3 className="m-0 mb-2.5 text-[11px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
-                Recent scans
-              </h3>
-              <ScanTimeline page={page} />
-            </section>
+            <Card>
+              <CardHeader>
+                <CardTitle>Recent scans</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ScanTimeline page={page} />
+              </CardContent>
+            </Card>
           </aside>
         </div>
       </Tabs>
@@ -531,7 +528,7 @@ function TabCount({ status, children }: { status: SiteStatus; children: React.Re
     <span
       className={cn(
         "font-mono text-[12px] tabular-nums",
-        status === "critical" ? "text-destructive" : status === "attention" ? "text-warning" : "text-muted-foreground",
+        status === "critical" || status === "attention" ? TONE_ACCENT[toneOf(status)] : "text-muted-foreground",
       )}
     >
       {children}
@@ -560,31 +557,35 @@ function AtAGlance({ page }: { page: SitePageData }) {
 
   const rows: { label: string; value: string; tone?: string }[] = [
     { label: "WordPress", value: page.latest?.coreVersion ?? "Unknown" },
-    ...(tls === null ? [] : [{ label: "TLS", value: `${tls}d left`, tone: "text-warning" }]),
+    ...(tls === null ? [] : [{ label: "TLS", value: `${tls}d left`, tone: TONE_ACCENT.warning }]),
     {
       label: "Helper",
       value: helper && helper.kind === "installed" ? helper.version : "Not installed",
-      ...(helper && helper.kind === "installed" ? { tone: "text-success" } : {}),
+      ...(helper && helper.kind === "installed" ? { tone: TONE_ACCENT.healthy } : {}),
     },
     { label: "Plugins", value: `${active} active` },
   ];
 
   return (
-    <section className="rounded-md border border-border bg-card px-4 py-3.5">
-      <h3 className="m-0 mb-1 text-[11px] font-semibold tracking-[0.07em] text-muted-foreground uppercase">
-        At a glance
-      </h3>
-      <dl className="m-0">
+    <Card>
+      <CardHeader>
+        <CardTitle>At a glance</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <dl className="m-0">
         {rows.map((row) => (
           <div
             key={row.label}
             className="flex items-center justify-between gap-3 border-b border-hairline py-2 last:border-b-0"
           >
             <dt className="text-[13px] text-muted-foreground">{row.label}</dt>
-            <dd className={cn("m-0 font-mono text-[12.5px]", row.tone ?? "text-foreground")}>{row.value}</dd>
+            <dd className={cn("m-0 font-mono text-[12.5px] tabular-nums", row.tone ?? "text-foreground")}>
+              {row.value}
+            </dd>
           </div>
         ))}
-      </dl>
-    </section>
+        </dl>
+      </CardContent>
+    </Card>
   );
 }

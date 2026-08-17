@@ -1,28 +1,21 @@
 import { cn } from "@/lib/utils";
 import { SITE_STATUS_LABEL, type SiteStatus } from "@/lib/status";
+import { TONE_DOT, toneOf, type Tone } from "@/lib/tone";
 
 export type { SiteStatus };
 
-const STATUS_DOT_CLASS = {
-  critical: "bg-destructive",
-  attention: "bg-warning",
-  healthy: "bg-success",
-  unknown: "bg-muted-foreground/60",
-} as const satisfies Record<SiteStatus, string>;
-
 type StatusDotProps = {
-  status: SiteStatus;
+  status?: SiteStatus;
+  tone?: Tone;
   className?: string;
-} & (
-  | { decorative: true; label?: never }
-  | { decorative?: false; label?: string }
-);
+} & ({ decorative: true; label?: never } | { decorative?: false; label?: string });
 
-export function StatusDot({ status, className, decorative, label }: StatusDotProps) {
-  const text = label ?? SITE_STATUS_LABEL[status];
+export function StatusDot({ status, tone, className, decorative, label }: StatusDotProps) {
+  const resolved = tone ?? toneOf(status ?? "unknown");
+  const text = label ?? (status ? SITE_STATUS_LABEL[status] : resolved);
   return (
     <span
-      className={cn("inline-block size-2 shrink-0 rounded-full", STATUS_DOT_CLASS[status], className)}
+      className={cn("inline-block size-2 shrink-0 rounded-full", TONE_DOT[resolved], className)}
       {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": text })}
     />
   );

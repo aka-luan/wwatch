@@ -4,32 +4,31 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusDot } from "@/components/status-dot";
 import { ago } from "@/lib/format";
 import { fleetTable, TLS_WARN_DAYS, type FleetRow } from "@/lib/fleet-table";
+import { TONE_TEXT, toneOf, type Tone } from "@/lib/tone";
 import type { OverviewRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const COLUMNS = [
-  { key: "site", label: "Site", hidden: false, className: "min-w-[230px]" },
-  { key: "status", label: "Status", hidden: false, className: "w-[116px]" },
-  { key: "findings", label: "Findings", hidden: false, className: "w-[150px]" },
-  { key: "updates", label: "Updates", hidden: false, className: "w-[96px]" },
-  { key: "tls", label: "TLS", hidden: false, className: "w-[92px]" },
-  { key: "core", label: "Core", hidden: false, className: "w-[104px]" },
-  { key: "scan", label: "Last scan", hidden: false, className: "w-[120px]" },
-  { key: "open", label: "Open", hidden: true, className: "w-[40px] pr-5" },
+  { key: "site", label: "Site", hidden: false, className: "min-w-[180px]" },
+  { key: "status", label: "Status", hidden: false, className: "min-w-[104px]" },
+  { key: "findings", label: "Findings", hidden: false, className: "min-w-[130px]" },
+  { key: "updates", label: "Updates", hidden: false, className: "min-w-[76px]" },
+  { key: "tls", label: "TLS", hidden: false, className: "min-w-[68px]" },
+  { key: "core", label: "Core", hidden: false, className: "min-w-[80px]" },
+  { key: "scan", label: "Last scan", hidden: false, className: "min-w-[96px]" },
+  { key: "open", label: "Open", hidden: true, className: "w-[40px] pr-(--gutter)" },
 ] as const;
 
-const RAIL: Record<FleetRow["status"], string> = {
+/*
+ * A <tr> in a collapsed table cannot carry a left border, so the rail is an inset shadow
+ * instead of TONE_RAIL. Only the two problem tones get color; the rest keep the hairline.
+ */
+const RAIL: Record<Tone, string> = {
   critical: "shadow-[inset_3px_0_0_var(--destructive)]",
-  attention: "shadow-[inset_3px_0_0_var(--warning)]",
+  warning: "shadow-[inset_3px_0_0_var(--warning)]",
   healthy: "shadow-[inset_3px_0_0_var(--border)]",
-  unknown: "shadow-[inset_3px_0_0_var(--border)]",
-};
-
-const STATUS_TEXT: Record<FleetRow["status"], string> = {
-  critical: "font-semibold text-destructive",
-  attention: "font-semibold text-warning",
-  healthy: "text-muted-foreground",
-  unknown: "text-muted-foreground",
+  info: "shadow-[inset_3px_0_0_var(--border)]",
+  neutral: "shadow-[inset_3px_0_0_var(--border)]",
 };
 
 export type FleetTableProps = {
@@ -78,7 +77,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
       </caption>
       <thead>
         <tr className="border-b border-border bg-raised">
-          <th scope="col" className="w-[34px] py-2 pl-5">
+          <th scope="col" className="w-[34px] py-2 pl-(--gutter)">
             <Checkbox
               checked={allSelected}
               indeterminate={someSelected && !allSelected}
@@ -92,7 +91,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
               key={column.key}
               scope="col"
               className={cn(
-                "py-2 pr-4 text-[10.5px] leading-none font-semibold tracking-[0.07em] text-muted-foreground uppercase",
+                "py-2 pr-4 text-[12px] leading-none font-medium text-muted-foreground",
                 column.className,
               )}
             >
@@ -137,10 +136,10 @@ function FleetTableRow({
       className={cn(
         "border-b border-hairline transition-colors hover:bg-selected",
         selected && "bg-selected",
-        RAIL[row.status],
+        RAIL[toneOf(row.status)],
       )}
     >
-      <td className="py-2.5 pl-5 align-middle">
+      <td className="py-2.5 pl-(--gutter) align-middle">
         <Checkbox
           checked={selected}
           disabled={!row.updatable}
@@ -148,7 +147,7 @@ function FleetTableRow({
           aria-label={selectLabel}
         />
       </td>
-      <td className="min-w-[230px] py-2.5 pr-4 align-middle">
+      <td className="min-w-[180px] py-2.5 pr-4 align-middle">
         <button
           type="button"
           onClick={onOpen}
@@ -158,13 +157,13 @@ function FleetTableRow({
           <span className="font-mono text-[12px] leading-4 text-muted-foreground">{row.hostname}</span>
         </button>
       </td>
-      <td className="w-[116px] py-2.5 pr-4 align-middle">
+      <td className="py-2.5 pr-4 align-middle">
         <span className="inline-flex items-center gap-1.5">
           <StatusDot status={row.status} decorative className="size-[7px]" />
-          <span className={cn("text-[12.5px] leading-4", STATUS_TEXT[row.status])}>{row.statusLabel}</span>
+          <span className={cn("text-[12.5px] leading-4", TONE_TEXT[toneOf(row.status)])}>{row.statusLabel}</span>
         </span>
       </td>
-      <td className="w-[150px] py-2.5 pr-4 align-middle text-[12.5px] leading-4 text-foreground">
+      <td className="py-2.5 pr-4 align-middle text-[12.5px] leading-4 text-foreground">
         {row.finding ? (
           <span className="[overflow-wrap:anywhere]">
             {row.finding}
@@ -174,11 +173,11 @@ function FleetTableRow({
           <span className="text-muted-foreground">&mdash;</span>
         )}
       </td>
-      <td className="w-[96px] py-2.5 pr-4 align-middle">
+      <td className="py-2.5 pr-4 align-middle">
         {row.updates > 0 ? (
           <span
             className={cn(
-              "inline-block rounded border border-border px-[7px] py-0.5 font-mono text-[12.5px] leading-4",
+              "inline-block rounded-sm border border-border px-[7px] py-0.5 font-mono text-[12.5px] leading-4 tabular-nums",
               row.status === "healthy" ? "bg-card text-muted-foreground" : "bg-secondary text-foreground",
             )}
           >
@@ -190,24 +189,24 @@ function FleetTableRow({
       </td>
       <td
         className={cn(
-          "w-[92px] py-2.5 pr-4 align-middle font-mono text-[12.5px] leading-4",
+          "py-2.5 pr-4 align-middle font-mono text-[12.5px] leading-4 tabular-nums",
           tlsWarn ? "text-warning" : "text-muted-foreground",
         )}
       >
         {row.tlsDaysLeft === null ? "—" : `${row.tlsDaysLeft}d`}
       </td>
-      <td className="w-[104px] py-2.5 pr-4 align-middle font-mono text-[12.5px] leading-4 text-muted-foreground">
+      <td className="py-2.5 pr-4 align-middle font-mono text-[12.5px] leading-4 tabular-nums text-muted-foreground">
         {row.coreVersion ?? "—"}
       </td>
       <td
         className={cn(
-          "w-[120px] py-2.5 pr-4 align-middle text-[12.5px] leading-4",
+          "py-2.5 pr-4 align-middle text-[12.5px] leading-4",
           row.stale ? "text-warning" : "text-muted-foreground",
         )}
       >
         {row.running ? "scanning…" : ago(row.finishedAt)}
       </td>
-      <td className="w-[40px] py-2.5 pr-5 text-right align-middle">
+      <td className="w-[40px] py-2.5 pr-(--gutter) text-right align-middle">
         <button
           type="button"
           onClick={onOpen}
