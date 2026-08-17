@@ -2,7 +2,7 @@
 
 A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests. With helper 1.3.0 it also shows PHP, constants, checksums, must-use plugins, cron, autoload size, and admin-user facts that core REST cannot see.
 
-Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the site panel. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0). Health findings appear when `GET /wp-json/wwatch/v1/health` answers (v1.3.0). An older helper that 404s that route still scans; you just do not get those extra findings.
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the site page. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0). Health findings appear when `GET /wp-json/wwatch/v1/health` answers (v1.3.0). An older helper that 404s that route still scans; you just do not get those extra findings.
 
 ## Run locally
 
@@ -58,15 +58,15 @@ Use an administrator account. Application Passwords inherit that user's capabili
 
 If connect says WordPress did not see the password, the host or CDN dropped the `Authorization` header. Hostinger CDN does this. In hPanel, disable CDN or exclude `/wp-json`, or add `SetEnvIf Authorization "(.*)" HTTP_AUTHORIZATION=$1` to `.htaccess`.
 
-wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the site panel and use Settings. The origin cannot change; scan history stays.
+wwatch starts a scan as soon as the site is added. To rename a site or rotate the Application Password, open the site page and use its **Settings** tab. The origin cannot change; scan history stays.
 
 ### Log in, update, and fix from the board
 
 Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does those jobs, and it can delete a short allowlist of public files:
 
-1. Download `wwatch.php` from the site panel (or copy `plugin/wwatch.php` from this repo). Replace 1.2.0 if that is already installed. Current helper is 1.3.0.
+1. Download `wwatch.php` from the site page (or copy `plugin/wwatch.php` from this repo). Replace 1.2.0 if that is already installed. Current helper is 1.3.0.
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
-3. Scan the site. The site panel then shows **WP Admin**, **Update** on each plugin/theme/core finding, **Update all** for plugins and themes, and **Fix** on findings the helper can actually repair.
+3. Scan the site. The site page then shows **WP Admin** in its header, **Update** on each plugin/theme/core finding, **Update all** on the **Updates** tab (plugins and themes; core stays its own button), and **Fix** on findings the helper can actually repair.
 
 WP Admin mints a one-time link (30 seconds, single use) for the Application Password user. That user must be an administrator. Updates call `POST /wp-json/wwatch/v1/update` as that same user, then the board scans again. Fix calls `POST /wp-json/wwatch/v1/repair` the same way. If the plugin is missing or old, the board says so instead of opening a dead tab or pretending core REST can upgrade. A 1.1.0 helper still updates and hides Fix.
 
@@ -100,9 +100,13 @@ The extra helper findings are facts core REST cannot see:
 
 These can warn or crit the rollup like any other finding. They do not send Telegram or email.
 
-A scan is a snapshot. The site row shows the latest finished snapshot. The site panel lists earlier scans (status, time, finding counts). A running scan does not rewrite that row until it finishes.
+A scan is a snapshot. The fleet row shows the latest finished snapshot. The site page's **Activity** tab lists earlier scans (status, time, finding counts). A running scan does not rewrite that row until it finishes.
+
+## Daily scan
 
 Vercel hits `GET /api/scan-all` every day at 06:00 UTC. That is the same route as **Scan all**. Hobby only allows a daily cron, which is the interval this board needs. Without the cron, the board stays on the last scan you started by hand.
+
+## Alerts
 
 A new down, auth failure, or public `wp-config` backup, `debug.log`, or `.git` sends a message. The same finding the next day does not. Set one or both:
 
@@ -120,15 +124,29 @@ npm run lint
 npm run verify
 ```
 
+## The board
+
+Two screens.
+
+**Fleet.** Four numbers across the top — Critical, Warning, Healthy, Pending updates — and the first three double as the status filter. Below them the fleet is one table: site, status, findings, updates, TLS, core, last scan. Narrow viewports drop Core and Last scan first, and below 840px the table becomes a stacked card list with status, the leading finding, and what is pending. Tick the checkbox on any site that has updates to select it; a sticky bar then names the selection, warns about sites that cannot update, and offers **Update selected** (confirmed by a dialog that lists every item it will run and every site it will skip) or **Scan selected**.
+
+**Site.** Clicking a row opens the site's own page: a header with status, last scan, helper version and capabilities, and **Open site** / **WP Admin** / **Scan now**; then five tabs — **Findings** (needs-action first, informational collapsed), **Updates** (pending plugin/theme/core items plus **Update all**), **Plugins**, **Activity** (scan history), **Settings** (rename, rotate the Application Password, remove the site).
+
+The board polls `/api/sites` every 2.5s, so scans started anywhere show up without a reload.
+
 ## UI components
 
-The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live in `web/components/ui`. Product pieces on top of those:
+The board is a Vite + React app in `web/`. shadcn/ui primitives (Base UI) live in `web/components/ui`. The app is dark-only — `<html class="dark">` is hardcoded in both entries. Product pieces on top of the primitives:
 
-- `StatusBadge` / `StatusDot` for site and finding status (`critical`, `attention`, `healthy`, `unknown`)
-- `SiteList` groups the fleet into Needs attention (critical, attention, unknown) and Healthy rows
-- `FindingRow` for compact operator finding lines (actionable, updates, info, healthy checks)
-- `SiteSheet` for the site action center (shadcn `Sheet`), with a sticky header and attention-first sections
-- Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`)
+- `FleetStatStrip` — the four counters, three of which are the primary status filter
+- `FleetTable` / `FleetCards` — the same rows and ordering at wide and narrow viewports (`web/lib/fleet-table.ts`)
+- `FleetSelectionBar` + `BulkUpdateDialog` — multi-site selection and the confirm step that names every item and every skip (`web/lib/update-plan.ts`)
+- `SitePage` — the tabbed site page, with `ScanTimeline` behind the Activity tab
+- `FindingRow` — compact operator finding lines (actionable, updates, info, healthy checks)
+- `StatusBadge` / `StatusDot` — site and finding status (`critical`, `attention`, `healthy`, `unknown`)
+- Semantic tokens in `web/styles.css` (`background`, `foreground`, `muted`, `border`, `destructive`, `warning`, `success`) and the tone helpers in `web/lib/tone.ts` for the status rails
 
-Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin or remove-site actions with `AlertDialog`. Site details use `Sheet`. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.
+Use `Button` variants for hierarchy (`default` primary, `outline`, `ghost`, `destructive`). Confirm risky plugin, bulk-update, or remove-site actions with `AlertDialog`. Color is an accent — a dot, a left rail, a border — never a filled surface. `Toaster` (Sonner) is for short-lived feedback only. `Skeleton` is for first load, not for hiding a known scan while it refreshes.
+
+View logic lives in `web/lib/*.ts` with its own `*.test.ts` next to it; components stay rendering-only. `npm test` runs those alongside the server tests in `src/`.
 
