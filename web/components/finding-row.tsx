@@ -3,11 +3,13 @@ import { ChevronDownIcon, ChevronRightIcon, CircleCheckIcon } from "lucide-react
 import { StatusBadge } from "@/components/status-badge";
 import { StatusDot } from "@/components/status-dot";
 import { Button } from "@/components/ui/button";
+import { cardVariants } from "@/components/ui/card";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { EmptyState } from "@/components/ui/empty-state";
 import { cn } from "@/lib/utils";
 import type { FindingTone } from "@/lib/finding-groups";
 import type { SiteStatus } from "@/lib/status";
+import { TONE_RAIL_INSET, toneOf } from "@/lib/tone";
 
 type FindingRowProps = {
   status: SiteStatus;
@@ -53,7 +55,7 @@ export function FindingRow({
     return (
       <div
         className={cn(
-          "group/finding flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30",
+          "group/finding flex flex-col gap-2 border-t border-hairline px-3.5 py-2.5 transition-colors first:border-t-0 hover:bg-muted/30",
           "sm:flex-row sm:items-baseline sm:justify-between sm:gap-3",
         )}
         data-slot="finding-row"
@@ -72,7 +74,7 @@ export function FindingRow({
   if (resolved === "info") {
     return (
       <div
-        className="group/finding flex items-start gap-2 border-t border-border py-2.5 text-[13px] leading-5"
+        className="group/finding flex items-start gap-2 border-t border-hairline px-3.5 py-2.5 text-[13px] leading-5 first:border-t-0"
         data-slot="finding-row"
       >
         <StatusDot tone="info" decorative className="mt-1.5 size-1.5" />
@@ -90,30 +92,39 @@ export function FindingRow({
     );
   }
 
+  /*
+   * A finding that needs a decision is its own card: severity reads from the badge and a
+   * three-pixel rail on the leading edge, so the surface itself stays neutral instead of
+   * turning the page yellow.
+   */
   return (
-    <div
+    <article
       className={cn(
-        "group/finding flex flex-col gap-2 border-t border-border py-2.5 transition-colors hover:bg-muted/30",
+        cardVariants(),
+        "group/finding gap-2 p-3.5 transition-colors hover:bg-muted/20",
         "sm:flex-row sm:items-start sm:justify-between sm:gap-3",
+        TONE_RAIL_INSET[toneOf(status)],
       )}
       data-slot="finding-row"
     >
       <div className="min-w-0 flex-1">
         {showStatus ? (
-          <div className="mb-1">
+          <div className="mb-1.5">
             <StatusBadge status={status}>{statusLabel}</StatusBadge>
           </div>
         ) : null}
-        <p className="font-medium leading-5 [overflow-wrap:anywhere]">{title}</p>
+        <p className="m-0 text-[14px] leading-5 font-semibold [overflow-wrap:anywhere]">{title}</p>
         {explanation ? (
-          <p className="mt-0.5 text-sm leading-5 text-muted-foreground [overflow-wrap:anywhere]">{explanation}</p>
+          <p className="m-0 mt-1 text-[13px] leading-5 text-muted-foreground [overflow-wrap:anywhere]">
+            {explanation}
+          </p>
         ) : null}
         {detail ? <ViewDetails>{detail}</ViewDetails> : null}
       </div>
       {action ? (
         <div className="flex shrink-0 flex-wrap items-center gap-2 self-end sm:self-start">{action}</div>
       ) : null}
-    </div>
+    </article>
   );
 }
 
