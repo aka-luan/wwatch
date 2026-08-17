@@ -218,8 +218,8 @@ assert.equal(new URL(minted.url).origin, origin);
 
 const helper = await app.request("/api/helper-plugin");
 assert.equal(helper.status, 200);
-assert.match(helper.headers.get("content-disposition") ?? "", /wwatch\.php/);
-assert.match(await helper.text(), /Plugin Name: wwatch/);
+assert.match(helper.headers.get("content-disposition") ?? "", /wwatch\.zip/);
+assert.match(Buffer.from(await helper.arrayBuffer()).toString("latin1"), /wwatch\/wwatch\.php/);
 
 const beforeUpdate = await waitForScan(app, site.id);
 

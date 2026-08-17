@@ -283,8 +283,12 @@ test("POST /api/sites/:id/wp-login mints a helper URL and GET /api/helper-plugin
 
   const plugin = await app.request("/api/helper-plugin", { headers: { cookie: session } });
   assert.equal(plugin.status, 200);
-  assert.match(plugin.headers.get("content-disposition") ?? "", /filename="wwatch\.php"/);
-  assert.match(await plugin.text(), /Plugin Name: wwatch/);
+  assert.match(plugin.headers.get("content-disposition") ?? "", /filename="wwatch\.zip"/);
+  assert.equal(plugin.headers.get("content-type"), "application/zip");
+  const zip = Buffer.from(await plugin.arrayBuffer());
+  assert.equal(zip.subarray(0, 4).toString("hex"), "504b0304");
+  assert.match(zip.toString("latin1"), /wwatch\/wwatch\.php/);
+  assert.match(zip.toString("latin1"), /Plugin Name: wwatch/);
   await store.close();
 });
 

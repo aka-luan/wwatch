@@ -2,7 +2,7 @@
 
 A board for WordPress sites you already admin. You add a site with an Application Password. wwatch scans it and shows core updates, plugin and theme updates, broken links, exposed files, TLS windows, and a few Site Health tests. With helper 1.3.0 it also shows PHP, constants, checksums, must-use plugins, cron, autoload size, and admin-user facts that core REST cannot see.
 
-Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the site page. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0). Health findings appear when `GET /wp-json/wwatch/v1/health` answers (v1.3.0). An older helper that 404s that route still scans; you just do not get those extra findings.
+Scans talk to core REST. Nothing is installed on WordPress for that. Auto-login, one-click plugin/theme/core updates, and Fix on a few exposed-file findings need the optional `plugin/wwatch.php` helper (`wwatch/v1`). A scan records whether that plugin is present and which capabilities it has. Update all plugins and themes from the site page. Core is a separate button. Fix only appears when the helper advertises `repair` (v1.2.0). Health findings appear when `GET /wp-json/wwatch/v1/health` answers (v1.3.0). A scan detects the plugin at `GET /wp-json/wwatch/v1/status` (v1.3.1) and falls back to the namespace root for older copies. An older helper that 404s that route still scans; you just do not get those extra findings.
 
 ## Run locally
 
@@ -64,7 +64,7 @@ wwatch starts a scan as soon as the site is added. To rename a site or rotate th
 
 Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does those jobs, and it can delete a short allowlist of public files:
 
-1. Download `wwatch.php` from the site page (or copy `plugin/wwatch.php` from this repo). Replace 1.2.0 if that is already installed. Current helper is 1.3.0.
+1. Download `wwatch.zip` from the site page — the board packages `plugin/wwatch.php` the way the WordPress uploader wants it. Replace an older copy if one is already installed. Current helper is 1.3.1.
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
 3. Scan the site. The site page then shows **WP Admin** in its header, **Update** on each plugin/theme/core finding, **Update all** on the **Updates** tab (plugins and themes; core stays its own button), and **Fix** on findings the helper can actually repair.
 

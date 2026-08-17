@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { asSiteId, parseOrigin, parsePluginRef } from "./domain.js";
-import { applyHelperRepair, applyHelperUpdate, fetchHelperHealth, findingsFromHealth, helperPluginFile, loginUrlFrom, mintLoginLink, parseHelperHealth, probeHelper } from "./helper.js";
+import { applyHelperRepair, applyHelperUpdate, fetchHelperHealth, findingsFromHealth, helperPluginFile, helperPluginSource, loginUrlFrom, mintLoginLink, parseHelperHealth, probeHelper } from "./helper.js";
 import type { ScanDeps } from "./scan.js";
 
 const site = {
@@ -87,8 +87,8 @@ test("loginUrlFrom requires the token in the query string", () => {
 });
 
 test("helperPluginFile serves the WordPress plugin from disk", () => {
-  const file = helperPluginFile();
-  assert.equal(file.filename, "wwatch.php");
+  const file = { filename: helperPluginFile().filename, body: helperPluginSource() };
+  assert.equal(file.filename, "wwatch.zip");
   assert.match(file.body, /Plugin Name: wwatch/);
   assert.match(file.body, /wwatch\/v1/);
   assert.match(file.body, /login-link/);
@@ -96,7 +96,8 @@ test("helperPluginFile serves the WordPress plugin from disk", () => {
   assert.match(file.body, /wwatch_run_update/);
   assert.match(file.body, /wwatch_run_repair/);
   assert.match(file.body, /wwatch_health/);
-  assert.match(file.body, /Version: 1\.3\.0/);
+  assert.match(file.body, /Version: 1\.3\.1/);
+  assert.match(file.body, /"\/status"/);
   assert.match(file.body, /"repair"/);
   assert.match(file.body, /\/health/);
   assert.match(file.body, /xmlrpc_enabled/);
@@ -110,7 +111,7 @@ test("probeHelper records an installed helper and a missing route", async () => 
     now: () => new Date(),
     tlsDaysLeft: async () => null,
     fetch: async (input) => {
-      assert.equal(String(input), "https://bakery.example/wp-json/wwatch/v1");
+      assert.equal(String(input), "https://bakery.example/wp-json/wwatch/v1/status");
       return new Response(JSON.stringify({ version: "1.1.0", capabilities: ["login", "update"] }), {
         status: 200,
       });
@@ -128,6 +129,42 @@ test("probeHelper records an installed helper and a missing route", async () => 
     fetch: async () => new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 }),
   });
   assert.deepEqual(missing, { kind: "missing" });
+});
+
+test("probeHelper falls back to the namespace root for helpers older than 1.3.1", async () => {
+  const seen: string[] = [];
+  const helper = await probeHelper(site, {
+    now: () => new Date(),
+    tlsDaysLeft: async () => null,
+    fetch: async (input) => {
+      const url = String(input);
+      seen.push(url);
+      if (url.endsWith("/status")) {
+        return new Response(JSON.stringify({ code: "rest_no_route" }), { status: 404 });
+      }
+      return new Response(JSON.stringify({ version: "1.3.0", capabilities: ["login", "update", "repair"] }), {
+        status: 200,
+      });
+    },
+  });
+  assert.deepEqual(seen, [
+    "https://bakery.example/wp-json/wwatch/v1/status",
+    "https://bakery.example/wp-json/wwatch/v1/",
+  ]);
+  assert.deepEqual(helper, {
+    kind: "installed",
+    version: "1.3.0",
+    capabilities: ["login", "update", "repair"],
+  });
+});
+
+test("helperPluginFile packages the plugin as a zip WordPress will accept", () => {
+  const file = helperPluginFile();
+  assert.equal(file.filename, "wwatch.zip");
+  assert.equal(file.contentType, "application/zip");
+  assert.equal(file.body.subarray(0, 4).toString("hex"), "504b0304");
+  assert.match(file.body.toString("latin1"), /wwatch\/wwatch\.php/);
+  assert.match(file.body.toString("latin1"), /Plugin Name: wwatch/);
 });
 
 test("applyHelperUpdate posts plugin, theme, core, and all", async () => {
