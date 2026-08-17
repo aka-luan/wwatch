@@ -31,7 +31,7 @@ export function SiteFilters({
 
   return (
     <section className="site-filters" aria-label="Filter sites">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-wrap items-center gap-2 rounded-lg border border-border bg-card p-1.5">
         <SearchInput
           value={state.query}
           onValueChange={(query) => onChange({ ...state, query })}

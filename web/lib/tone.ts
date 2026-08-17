@@ -69,6 +69,19 @@ export const TONE_RAIL = {
 } as const satisfies Record<Tone, string>;
 
 /**
+ * The same rail drawn as an inset shadow, for elements whose border-color is already
+ * spoken for — a <tr> in a collapsed table cannot carry a left border at all, and on a
+ * card the border shorthand would tint the bottom hairline too.
+ */
+export const TONE_RAIL_INSET = {
+  critical: "shadow-[inset_3px_0_0_var(--destructive)]",
+  warning: "shadow-[inset_3px_0_0_var(--warning)]",
+  healthy: "shadow-[inset_3px_0_0_var(--border)]",
+  info: "shadow-[inset_3px_0_0_var(--border)]",
+  neutral: "shadow-[inset_3px_0_0_var(--border)]",
+} as const satisfies Record<Tone, string>;
+
+/**
  * Rail for a rail that marks a *selection* rather than a severity, so it has to stay
  * visible even for the calm tones.
  */

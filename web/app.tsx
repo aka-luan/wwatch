@@ -140,7 +140,7 @@ function Board() {
     <div className="board">
       <header className="top">
         <div>
-          <p className="mark">wwatch</p>
+          <p className="mark">Wwatch</p>
           <p className="sub">WordPress fleet</p>
         </div>
         <div className="actions">

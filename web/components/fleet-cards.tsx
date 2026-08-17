@@ -1,9 +1,9 @@
 import { ChevronRightIcon } from "lucide-react";
 import { Skeleton } from "@/components/ui/skeleton";
-import { StatusDot } from "@/components/status-dot";
+import { StatusBadge } from "@/components/status-badge";
 import { ago } from "@/lib/format";
 import { fleetTable, TLS_WARN_DAYS, type FleetRow } from "@/lib/fleet-table";
-import { TONE_RAIL, TONE_TEXT, toneOf } from "@/lib/tone";
+import { TONE_RAIL_INSET, toneOf } from "@/lib/tone";
 import type { OverviewRow } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -41,16 +41,17 @@ export function FleetCards({
             type="button"
             onClick={() => onOpen(row.row.site.id)}
             className={cn(
-              "flex w-full items-center gap-3 border-b border-hairline border-l-[3px] px-4 py-3 text-left outline-none",
+              "flex w-full cursor-pointer items-center gap-3 border-b border-hairline px-4 py-3 text-left outline-none",
               "hover:bg-selected focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset",
-              TONE_RAIL[toneOf(row.status)],
+              TONE_RAIL_INSET[toneOf(row.status)],
             )}
           >
             <span className="min-w-0 flex-1">
               <span className="flex items-center gap-2">
-                <StatusDot status={row.status} decorative className="size-[7px]" />
                 <span className="truncate text-[14px] font-semibold text-foreground">{row.name}</span>
-                <span className={cn("shrink-0 text-[12px]", TONE_TEXT[toneOf(row.status)])}>{row.statusLabel}</span>
+                <StatusBadge status={row.status} className="shrink-0">
+                  {row.statusLabel}
+                </StatusBadge>
               </span>
               <span className="mt-0.5 block truncate font-mono text-[12px] text-muted-foreground">
                 {row.hostname}

@@ -208,21 +208,24 @@ body {
 
 .board-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 8px;
-  padding: 8px var(--gutter);
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  padding: 4px var(--gutter) 10px;
   padding-left: max(var(--gutter), env(safe-area-inset-left));
   padding-right: max(var(--gutter), env(safe-area-inset-right));
 }
 
 .site-filters {
   display: flex;
+  flex: 1 1 22rem;
+  min-width: 0;
   flex-direction: column;
   gap: 8px;
 }
 
 .scanning-note {
-  margin: 0;
+  margin: 0 0 0 auto;
   font-size: 12px;
 }
 
@@ -409,6 +412,21 @@ a {
 @layer base {
   * {
     @apply border-border outline-ring/50;
+  }
+  /*
+   * Tailwind's preflight is not imported (only theme + utilities are), so form controls
+   * keep the user-agent gray face and font. Any element that opts into a surface does so
+   * with a utility, which lands in the later utilities layer and wins over this.
+   */
+  button,
+  input,
+  select,
+  textarea {
+    background-color: transparent;
+    color: inherit;
+    font: inherit;
+    letter-spacing: inherit;
+    border: 0 solid;
   }
   body {
     @apply bg-background text-foreground;
