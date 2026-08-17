@@ -183,9 +183,9 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
   app.get("/api/helper-plugin", (c) => {
     try {
       const file = helperPluginFile();
-      c.header("content-type", "application/octet-stream");
+      c.header("content-type", file.contentType);
       c.header("content-disposition", `attachment; filename="${file.filename}"`);
-      return c.body(file.body);
+      return c.body(new Uint8Array(file.body));
     } catch (error) {
       return c.json({ error: message(error) }, 500);
     }

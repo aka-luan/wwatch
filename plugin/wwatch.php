@@ -2,7 +2,7 @@
 /**
  * Plugin Name: wwatch
  * Description: Lets the wwatch board log you into wp-admin, update plugins, themes, and core, fix a few exposed files, and read extra health facts.
- * Version: 1.3.0
+ * Version: 1.3.1
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: MIT
@@ -12,7 +12,7 @@ if (!defined("ABSPATH")) {
   exit();
 }
 
-const WWATCH_VERSION = "1.3.0";
+const WWATCH_VERSION = "1.3.1";
 const WWATCH_LOGIN_TTL = 30;
 const WWATCH_REPAIR_PATHS = [
   "/debug.log",
@@ -31,6 +31,14 @@ add_filter("xmlrpc_enabled", "wwatch_xmlrpc_enabled");
 
 function wwatch_register_rest(): void
 {
+  // WordPress owns /wp-json/wwatch/v1 itself: that path returns its own namespace index and
+  // never reaches a route registered as "/". /status is a path of our own, so the board can
+  // actually see this plugin. "/" stays for boards that still probe the namespace root.
+  register_rest_route("wwatch/v1", "/status", [
+    "methods" => "GET",
+    "callback" => "wwatch_capabilities",
+    "permission_callback" => "wwatch_can_manage",
+  ]);
   register_rest_route("wwatch/v1", "/", [
     "methods" => "GET",
     "callback" => "wwatch_capabilities",

@@ -11,6 +11,7 @@ import {
 } from "./domain.js";
 import type { ScanDeps } from "./scan.js";
 import type { StoredSite } from "./store.js";
+import { zipFile } from "./zip.js";
 
 const TIMEOUT_MS = 10_000;
 const UPDATE_TIMEOUT_MS = 55_000;
@@ -19,6 +20,7 @@ const LOW_MEMORY_BYTES = 64 * 1024 * 1024;
 const AUTOLOAD_WARN_BYTES = 1024 * 1024;
 const NAME_CAP = 40;
 export const HELPER_PLUGIN_FILENAME = "wwatch.php";
+export const HELPER_PLUGIN_ZIP_FILENAME = "wwatch.zip";
 
 export type HelperHealth = {
   php: { version: string; required: string; memoryLimit: string; memoryBytes: number | null } | null;
@@ -34,21 +36,42 @@ export type HelperHealth = {
   users: { administrators: number; loginAdmin: boolean; id1: boolean } | null;
 };
 
+/**
+ * /wp-json/wwatch/v1 is WordPress's own namespace index, so it answers 200 with route metadata
+ * whether or not the plugin is there. Ask the plugin's own /status path, and fall back to the
+ * namespace root with its trailing slash for helpers older than 1.3.1, which only had that.
+ */
 export async function probeHelper(site: StoredSite, deps: ScanDeps): Promise<HelperInfo | null> {
-  const hit = await helperRequest(site, deps, "/wp-json/wwatch/v1", { method: "GET" }, TIMEOUT_MS);
-  if (hit.kind === "network") {
-    return null;
+  const status = await probeHelperPath(site, deps, "/wp-json/wwatch/v1/status");
+  if (status.kind !== "missing-route") {
+    return status.helper;
   }
-  if (hit.status === 404 || isMissingRoute(hit.body)) {
+  const legacy = await probeHelperPath(site, deps, "/wp-json/wwatch/v1/");
+  if (legacy.kind === "missing-route") {
     return { kind: "missing" };
   }
+  return legacy.helper;
+}
+
+async function probeHelperPath(
+  site: StoredSite,
+  deps: ScanDeps,
+  path: string,
+): Promise<{ kind: "missing-route" } | { kind: "answer"; helper: HelperInfo | null }> {
+  const hit = await helperRequest(site, deps, path, { method: "GET" }, TIMEOUT_MS);
+  if (hit.kind === "network") {
+    return { kind: "answer", helper: null };
+  }
+  if (hit.status === 404 || isMissingRoute(hit.body)) {
+    return { kind: "missing-route" };
+  }
   if (hit.status !== 200) {
-    return null;
+    return { kind: "answer", helper: null };
   }
   try {
-    return helperFromCapabilities(JSON.parse(hit.body));
+    return { kind: "answer", helper: helperFromCapabilities(JSON.parse(hit.body)) };
   } catch {
-    return null;
+    return { kind: "answer", helper: null };
   }
 }
 
@@ -459,9 +482,23 @@ export async function applyHelperRepair(
   return postHelper(site, deps, "/wp-json/wwatch/v1/repair", body, "repair");
 }
 
-export function helperPluginFile(): { filename: string; body: string } {
-  const path = helperPluginPath();
-  return { filename: HELPER_PLUGIN_FILENAME, body: readFileSync(path, "utf8") };
+/**
+ * WordPress's plugin uploader only takes a .zip, so ship one with the plugin in its own
+ * directory — that is the layout the unzip step expects.
+ */
+export function helperPluginFile(): { filename: string; body: Buffer; contentType: string } {
+  return {
+    filename: HELPER_PLUGIN_ZIP_FILENAME,
+    body: zipFile(
+      [{ path: `wwatch/${HELPER_PLUGIN_FILENAME}`, body: helperPluginSource() }],
+      new Date(0),
+    ),
+    contentType: "application/zip",
+  };
+}
+
+export function helperPluginSource(): string {
+  return readFileSync(helperPluginPath(), "utf8");
 }
 
 export function loginUrlFrom(origin: string, body: string): string {
