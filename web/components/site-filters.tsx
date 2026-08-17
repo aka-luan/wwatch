@@ -17,7 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { OverviewRow } from "@/lib/types";
 
-/** Search + secondary (kind-of-problem) filters. The status summary/filter lives in SiteSummaryBar. */
+/** Search + secondary (kind-of-problem) filters. The status summary/filter lives in FleetStatStrip. */
 export function SiteFilters({
   sites,
   state,
