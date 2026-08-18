@@ -32,10 +32,11 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 3. Set these environment variables on the Vercel project:
 
    - `DASHBOARD_PASSWORD` — the password you type on `/login.html`. Sessions last 7 days.
-   - `WATCH_SECRET` — optional. Encrypts Application Passwords in Turso. If unset, `DASHBOARD_PASSWORD` is the wrapping key. Set this if you want to change the board password later without rewriting site credentials.
+   - `WATCH_SECRET` — **required**. 32+ random bytes (`openssl rand -base64 32`), not the board password. It signs board sessions and encrypts Application Passwords in Turso. Keeping it separate means the board password can change without rewriting site credentials, and a stolen session cookie gives nothing to guess against.
    - `TURSO_DATABASE_URL` — `libsql://...`
    - `TURSO_AUTH_TOKEN`
    - `CRON_SECRET` — Vercel sends this as `Authorization: Bearer …` on the daily scan. Without it the board password blocks the cron.
+   - `TRUST_PROXY` — only for self-hosting behind your own reverse proxy. Set it to `1` when a proxy you control rewrites `X-Forwarded-For`; otherwise login attempts are counted per socket address, since a client-supplied header would hand out a fresh rate-limit bucket per request. Vercel is trusted automatically.
 
 4. Deploy. Open the Vercel URL, sign in, add a site.
 
@@ -43,9 +44,11 @@ A Vercel function has no durable disk and no shared memory. wwatch stores sites,
 npx vercel
 ```
 
-Application Passwords for your WordPress sites live in Turso, encrypted at rest when `WATCH_SECRET` or `DASHBOARD_PASSWORD` is set. Treat that database like production secrets.
+Application Passwords for your WordPress sites live in Turso, encrypted at rest with AES-256-GCM under a per-row scrypt key derived from `WATCH_SECRET`. Treat that database like production secrets.
 
-The board cookie is an HMAC of the dashboard password with a 7-day lifetime. **Log out** clears it.
+The board cookie is a random nonce and issue time signed with `WATCH_SECRET`, good for 7 days. **Log out** clears it and records the cookie's nonce as revoked, so a copy taken beforehand stops working. Locally, with no `WATCH_SECRET` set, the signing key is random per process, so restarting the dev server ends open sessions.
+
+Upgrading a board that ran without `WATCH_SECRET`: set it, then start the app once. Rows sealed under the old board password are read with it one last time and resealed under the new secret. Keep `DASHBOARD_PASSWORD` unchanged across that first start.
 
 ## Connect a site
 
@@ -64,7 +67,7 @@ wwatch starts a scan as soon as the site is added. To rename a site or rotate th
 
 Application Passwords cannot create a wp-admin cookie, and core REST cannot upgrade a plugin, theme, or WordPress itself. The helper plugin does those jobs, and it can delete a short allowlist of public files:
 
-1. Download `wwatch.zip` from the site page — the board packages `plugin/wwatch.php` the way the WordPress uploader wants it. Replace an older copy if one is already installed. Current helper is 1.3.1.
+1. Download `wwatch.zip` from the site page — the board packages `plugin/wwatch.php` the way the WordPress uploader wants it. Replace an older copy if one is already installed. Current helper is 1.4.0, which checks the WordPress capability each action actually needs (`update_plugins`, `update_themes`, `update_core`, and network admin for file deletion) rather than `manage_options` alone.
 2. In wp-admin, open **Plugins → Add New → Upload Plugin** and activate it.
 3. Scan the site. The site page then shows **WP Admin** in its header, **Update** on each plugin/theme/core finding, **Update all** on the **Updates** tab (plugins and themes; core stays its own button), and **Fix** on findings the helper can actually repair.
 

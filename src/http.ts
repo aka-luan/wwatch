@@ -1,11 +1,12 @@
-import { createHash, createHmac, timingSafeEqual } from "node:crypto";
+import { createHash, createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { Hono } from "hono";
 import { asSiteId, parseRepairTarget, parseUpdateTarget } from "./domain.js";
 import { Fleet } from "./fleet.js";
 import { helperPluginFile } from "./helper.js";
 
 export const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const SESSION_PURPOSE = "wwatch-session-v1";
+const SESSION_PURPOSE = "wwatch-session-v2";
+const NONCE_BYTES = 16;
 const CSP = [
   "default-src 'self'",
   "script-src 'self'",
@@ -20,7 +21,13 @@ const CSP = [
   "frame-ancestors 'none'",
 ].join("; ");
 
-export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = ""): Hono {
+export function createApp(
+  fleet: Fleet,
+  dashboardPassword = "",
+  cronSecret = "",
+  sessionKey: Buffer = sessionKeyFromEnv(),
+  trustProxy: boolean = trustProxyFromEnv(),
+): Hono {
   const app = new Hono();
 
   app.use("*", async (c, next) => {
@@ -65,7 +72,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return;
     }
     const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
-    if (cookie && sessionCookieValid(cookie, dashboardPassword)) {
+    if (cookie && sessionCookieValid(cookie, sessionKey) && !(await fleet.sessionRevoked(sessionNonce(cookie)))) {
       await next();
       return;
     }
@@ -209,7 +216,7 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
   });
 
   app.post("/api/login", async (c) => {
-    const ip = clientIp(c);
+    const ip = clientIp(c, trustProxy);
     if (!(await fleet.loginAllowed(ip))) {
       return c.json({ error: "too many attempts" }, 429);
     }
@@ -220,11 +227,15 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return c.json({ error: "wrong password" }, 401);
     }
     await fleet.clearLoginFailures(ip);
-    c.header("set-cookie", watchCookie(sessionToken(dashboardPassword), c, Math.floor(SESSION_TTL_MS / 1000)));
+    c.header("set-cookie", watchCookie(sessionToken(sessionKey), c, Math.floor(SESSION_TTL_MS / 1000)));
     return c.json({ ok: true });
   });
 
   app.post("/api/logout", async (c) => {
+    const cookie = parseCookie(c.req.header("cookie") ?? "")["watch"];
+    if (cookie && sessionCookieValid(cookie, sessionKey)) {
+      await fleet.revokeSession(sessionNonce(cookie), Number(cookie.split(".")[0]) + SESSION_TTL_MS);
+    }
     c.header("set-cookie", watchCookie("", c, 0));
     return c.json({ ok: true });
   });
@@ -284,22 +295,44 @@ async function readJsonObject(c: { req: { json: () => Promise<unknown> } }): Pro
   }
 }
 
-export function sessionToken(password: string, issuedAt = Date.now()): string {
-  const issued = String(issuedAt);
-  const mac = createHmac("sha256", password).update(`${SESSION_PURPOSE}:${issued}`).digest("base64url");
-  return `${issued}.${mac}`;
+/**
+ * The session MAC key. It must never be the board password: the cookie carries both the signed
+ * message and its MAC, so a password-keyed cookie is an offline guessing target for whoever picks
+ * one up. WATCH_SECRET is high-entropy server-side key material instead. With none set the key is
+ * random per process, which keeps dev safe at the cost of sessions ending on restart.
+ */
+export function sessionKeyFromEnv(env: NodeJS.Dict<string> = process.env): Buffer {
+  const secret = env.WATCH_SECRET?.trim();
+  if (!secret) {
+    return randomBytes(32);
+  }
+  return createHash("sha256").update("wwatch-session-key-v1").update(secret).digest();
 }
 
-export function sessionCookieValid(cookie: string, password: string, now = Date.now()): boolean {
-  const dot = cookie.indexOf(".");
-  if (dot <= 0) {
+export function sessionToken(
+  key: Buffer,
+  issuedAt = Date.now(),
+  nonce = randomBytes(NONCE_BYTES).toString("base64url"),
+): string {
+  const issued = String(issuedAt);
+  const mac = createHmac("sha256", key).update(`${SESSION_PURPOSE}:${issued}:${nonce}`).digest("base64url");
+  return `${issued}.${nonce}.${mac}`;
+}
+
+export function sessionNonce(cookie: string): string {
+  return cookie.split(".")[1] ?? "";
+}
+
+export function sessionCookieValid(cookie: string, key: Buffer, now = Date.now()): boolean {
+  const [issued, nonce, mac] = cookie.split(".");
+  if (!issued || !nonce || !mac) {
     return false;
   }
-  const issuedAt = Number(cookie.slice(0, dot));
+  const issuedAt = Number(issued);
   if (!Number.isFinite(issuedAt) || issuedAt > now + 60_000 || now - issuedAt > SESSION_TTL_MS) {
     return false;
   }
-  return secretsEqual(cookie, sessionToken(password, issuedAt));
+  return secretsEqual(cookie, sessionToken(key, issuedAt, nonce));
 }
 
 function watchCookie(
@@ -316,15 +349,42 @@ function secretsEqual(left: string, right: string): boolean {
   return timingSafeEqual(a, b);
 }
 
-function clientIp(c: { req: { header: (name: string) => string | undefined } }): string {
-  const forwarded = c.req.header("x-forwarded-for");
-  if (forwarded) {
-    const first = forwarded.split(",")[0]?.trim();
+/**
+ * X-Forwarded-For is written by whoever is talking to us unless a proxy we trust replaces it,
+ * so honouring it by default hands out a fresh rate-limit bucket per request. Vercel rewrites
+ * the header; anything else has to say so with TRUST_PROXY.
+ */
+export function trustProxyFromEnv(env: NodeJS.Dict<string> = process.env): boolean {
+  if (env.VERCEL === "1") {
+    return true;
+  }
+  return /^(1|true|yes)$/i.test(env.TRUST_PROXY?.trim() ?? "");
+}
+
+function clientIp(c: SocketContext, trustProxy: boolean): string {
+  if (trustProxy) {
+    const forwarded = c.req.header("x-forwarded-for");
+    const first = forwarded?.split(",")[0]?.trim();
     if (first) {
       return first;
     }
+    const real = c.req.header("x-real-ip")?.trim();
+    if (real) {
+      return real;
+    }
   }
-  return c.req.header("x-real-ip") ?? "local";
+  return socketAddress(c) ?? "local";
+}
+
+type SocketContext = {
+  req: { header: (name: string) => string | undefined };
+  env?: unknown;
+};
+
+function socketAddress(c: SocketContext): string | null {
+  const env = c.env as { incoming?: { socket?: { remoteAddress?: unknown } } } | undefined;
+  const address = env?.incoming?.socket?.remoteAddress;
+  return typeof address === "string" && address ? address : null;
 }
 
 function cookieSecure(c: { req: { url: string; header: (name: string) => string | undefined } }): string {

@@ -15,7 +15,7 @@ import {
   type Site,
   type SiteId,
 } from "./domain.js";
-import { isWrapped, keyFromSecret, unwrapPassword, wrapPassword, wrapSecretFromEnv } from "./wrap.js";
+import { isCurrentWrap, unwrapPassword, wrapPassword, wrapSecretsFromEnv } from "./wrap.js";
 
 export type StoredSite = Site & {
   username: string;
@@ -25,7 +25,10 @@ export type StoredSite = Site & {
 export type StoreConfig = {
   url: string;
   authToken?: string;
+  /** Secret new rows are sealed with. */
   wrapSecret?: string;
+  /** Older secrets that may still unseal rows written before the current one. */
+  previousWrapSecrets?: string[];
 };
 
 const STALE_JOB_MS = 3 * 60 * 1000;
@@ -34,29 +37,35 @@ export const LOGIN_MAX_FAILURES = 10;
 const HISTORY_LIMIT = 10;
 
 export function storeConfigFromEnv(): StoreConfig {
-  const wrapSecret = wrapSecretFromEnv();
+  const [wrapSecret, ...previousWrapSecrets] = wrapSecretsFromEnv();
   if (process.env.TURSO_DATABASE_URL) {
     return {
       url: process.env.TURSO_DATABASE_URL,
       ...(process.env.TURSO_AUTH_TOKEN ? { authToken: process.env.TURSO_AUTH_TOKEN } : {}),
       ...(wrapSecret ? { wrapSecret } : {}),
+      ...(previousWrapSecrets.length ? { previousWrapSecrets } : {}),
     };
   }
   const path = process.env.WATCH_DB ?? "data/watch.db";
   return {
     url: path.startsWith("file:") ? path : `file:${path}`,
     ...(wrapSecret ? { wrapSecret } : {}),
+    ...(previousWrapSecrets.length ? { previousWrapSecrets } : {}),
   };
 }
 
 export class Store {
   #db!: Client;
   #ready: Promise<void>;
-  #key: Buffer | null;
+  #secret: string | null;
+  #secrets: string[];
 
   constructor(config: StoreConfig | string) {
     const resolved = typeof config === "string" ? { url: fileUrl(config) } : config;
-    this.#key = resolved.wrapSecret ? keyFromSecret(resolved.wrapSecret) : null;
+    this.#secret = resolved.wrapSecret ?? null;
+    this.#secrets = [resolved.wrapSecret, ...(resolved.previousWrapSecrets ?? [])].filter(
+      (secret): secret is string => !!secret,
+    );
     if (resolved.url.startsWith("file:")) {
       const path = resolved.url.slice("file:".length);
       mkdirSync(dirname(path), { recursive: true });
@@ -205,6 +214,23 @@ export class Store {
     await this.#db.execute({ sql: `DELETE FROM login_failures WHERE ip = ?`, args: [ip] });
   }
 
+  /** Logout writes the cookie's nonce here so the signature alone stops being enough. */
+  async revokeSession(nonce: string, expiresAt: number): Promise<void> {
+    await this.#ready;
+    await this.#db.execute({
+      sql: `INSERT INTO revoked_sessions (nonce, expires_at) VALUES (?, ?)
+            ON CONFLICT(nonce) DO UPDATE SET expires_at = excluded.expires_at`,
+      args: [nonce, expiresAt],
+    });
+    await this.#db.execute({ sql: `DELETE FROM revoked_sessions WHERE expires_at < ?`, args: [Date.now()] });
+  }
+
+  async sessionRevoked(nonce: string): Promise<boolean> {
+    await this.#ready;
+    const row = await this.#one(`SELECT expires_at FROM revoked_sessions WHERE nonce = ?`, [nonce]);
+    return !!row && int(row, "expires_at") > Date.now();
+  }
+
   async overview(): Promise<OverviewRow[]> {
     const sites = await this.listSites();
     const rows: OverviewRow[] = [];
@@ -222,8 +248,8 @@ export class Store {
   }
 
   async close(): Promise<void> {
-    await this.#ready;
-    this.#db.close();
+    await this.#ready.catch(() => undefined);
+    this.#db?.close();
   }
 
   async #init(config: StoreConfig): Promise<void> {
@@ -257,6 +283,10 @@ export class Store {
         count INTEGER NOT NULL,
         reset_at INTEGER NOT NULL
       );
+      CREATE TABLE IF NOT EXISTS revoked_sessions (
+        nonce TEXT PRIMARY KEY,
+        expires_at INTEGER NOT NULL
+      );
       CREATE INDEX IF NOT EXISTS scans_site_finished ON scans (site_id, finished_at DESC);
     `);
     await this.#ensureHelperColumn();
@@ -277,7 +307,7 @@ export class Store {
   }
 
   #seal(plain: string): string {
-    return this.#key ? wrapPassword(plain, this.#key) : plain;
+    return this.#secret ? wrapPassword(plain, this.#secret) : plain;
   }
 
   #fromSiteRow(row: Record<string, unknown>): StoredSite {
@@ -286,7 +316,7 @@ export class Store {
       name: text(row, "name"),
       origin: text(row, "origin") as Origin,
       username: text(row, "username"),
-      applicationPassword: unwrapPassword(text(row, "application_password"), this.#key),
+      applicationPassword: unwrapPassword(text(row, "application_password"), this.#secrets),
     };
   }
 
@@ -301,20 +331,26 @@ export class Store {
     }
   }
 
+  /**
+   * Brings every row up to the current wrapping: plaintext rows, v1 rows, and rows sealed under a
+   * secret that has since been rotated all get resealed under the secret in use now.
+   */
   async #wrapExistingPasswords(): Promise<void> {
-    if (!this.#key) {
+    const secret = this.#secret;
+    if (!secret) {
       return;
     }
     const result = await this.#db.execute(`SELECT id, application_password FROM sites`);
     for (const row of result.rows) {
       const rec = asRecord(row);
       const stored = text(rec, "application_password");
-      if (isWrapped(stored)) {
+      if (isCurrentWrap(stored, secret)) {
         continue;
       }
+      const plain = unwrapPassword(stored, this.#secrets);
       await this.#db.execute({
         sql: `UPDATE sites SET application_password = ? WHERE id = ?`,
-        args: [wrapPassword(stored, this.#key), text(rec, "id")],
+        args: [wrapPassword(plain, secret), text(rec, "id")],
       });
     }
   }

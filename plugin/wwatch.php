@@ -2,7 +2,7 @@
 /**
  * Plugin Name: wwatch
  * Description: Lets the wwatch board log you into wp-admin, update plugins, themes, and core, fix a few exposed files, and read extra health facts.
- * Version: 1.3.1
+ * Version: 1.4.0
  * Requires at least: 6.0
  * Requires PHP: 7.4
  * License: MIT
@@ -12,7 +12,7 @@ if (!defined("ABSPATH")) {
   exit();
 }
 
-const WWATCH_VERSION = "1.3.1";
+const WWATCH_VERSION = "1.4.0";
 const WWATCH_LOGIN_TTL = 30;
 const WWATCH_REPAIR_PATHS = [
   "/debug.log",
@@ -52,7 +52,7 @@ function wwatch_register_rest(): void
   register_rest_route("wwatch/v1", "/update", [
     "methods" => "POST",
     "callback" => "wwatch_run_update",
-    "permission_callback" => "wwatch_can_manage",
+    "permission_callback" => "wwatch_can_update",
     "args" => [
       "kind" => [
         "required" => true,
@@ -70,7 +70,7 @@ function wwatch_register_rest(): void
   register_rest_route("wwatch/v1", "/repair", [
     "methods" => "POST",
     "callback" => "wwatch_run_repair",
-    "permission_callback" => "wwatch_can_manage",
+    "permission_callback" => "wwatch_can_repair",
     "args" => [
       "kind" => [
         "required" => true,
@@ -92,6 +92,52 @@ function wwatch_register_rest(): void
 function wwatch_can_manage(): bool
 {
   return current_user_can("manage_options");
+}
+
+/**
+ * manage_options is not enough on its own for anything that writes to disk. On multisite a site
+ * administrator holds it while WordPress reserves updates and file deletion for the network
+ * admin, so each route asks for the capability it actually exercises.
+ */
+function wwatch_is_network_admin(): bool
+{
+  return !is_multisite() || is_super_admin();
+}
+
+function wwatch_update_capability(string $kind): string
+{
+  if ($kind === "theme" || $kind === "themes") {
+    return "update_themes";
+  }
+  if ($kind === "core") {
+    return "update_core";
+  }
+  return "update_plugins";
+}
+
+function wwatch_can_update(WP_REST_Request $request): bool
+{
+  if (!wwatch_can_manage()) {
+    return false;
+  }
+  // DISALLOW_FILE_MODS strips the update caps from every user, including the network admin.
+  // Let the handler answer that with its own message instead of a bare 403 here.
+  if (defined("DISALLOW_FILE_MODS") && DISALLOW_FILE_MODS) {
+    return wwatch_is_network_admin();
+  }
+  return current_user_can(wwatch_update_capability((string) $request->get_param("kind")));
+}
+
+function wwatch_can_repair(WP_REST_Request $request): bool
+{
+  if (!wwatch_can_manage()) {
+    return false;
+  }
+  // Disabling XML-RPC is an option write; deleting files under ABSPATH is not.
+  if ($request->get_param("kind") === "xmlrpc") {
+    return true;
+  }
+  return wwatch_is_network_admin();
 }
 
 function wwatch_capabilities()

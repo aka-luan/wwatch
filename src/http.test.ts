@@ -4,7 +4,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import { Fleet } from "./fleet.js";
-import { createApp, SESSION_TTL_MS, sessionToken } from "./http.js";
+import { createApp, SESSION_TTL_MS, sessionKeyFromEnv, sessionToken } from "./http.js";
 import { Store } from "./store.js";
 import { asScanId } from "./domain.js";
 
@@ -56,6 +56,30 @@ test("login rejects a password cookie and rate-limits failures", async () => {
   });
   assert.equal(badJson.status, 401);
 
+  // The bad-json attempt above already counts, so nine more reach the limit.
+  for (let i = 0; i < 9; i += 1) {
+    const fail = await app.request("/api/login", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-forwarded-for": "203.0.113.9" },
+      body: JSON.stringify({ password: "nope" }),
+    });
+    assert.equal(fail.status, 401);
+  }
+  // A fresh X-Forwarded-For buys nothing: untrusted, the header is not the rate-limit key.
+  const locked = await app.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" },
+    body: JSON.stringify({ password: "board" }),
+  });
+  assert.equal(locked.status, 429);
+  await store.close();
+});
+
+test("a trusted proxy makes X-Forwarded-For the rate-limit key again", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "watch-"));
+  const store = new Store(join(dir, "watch.db"));
+  const app = createApp(new Fleet(store), "board", "", sessionKeyFromEnv({ WATCH_SECRET: "k" }), true);
+
   for (let i = 0; i < 10; i += 1) {
     const fail = await app.request("/api/login", {
       method: "POST",
@@ -70,24 +94,44 @@ test("login rejects a password cookie and rate-limits failures", async () => {
     body: JSON.stringify({ password: "board" }),
   });
   assert.equal(locked.status, 429);
+
+  const other = await app.request("/api/login", {
+    method: "POST",
+    headers: { "content-type": "application/json", "x-forwarded-for": "198.51.100.7" },
+    body: JSON.stringify({ password: "board" }),
+  });
+  assert.equal(other.status, 200);
   await store.close();
 });
 
 test("logout clears the cookie and an expired session is rejected", async () => {
   const dir = mkdtempSync(join(tmpdir(), "watch-"));
   const store = new Store(join(dir, "watch.db"));
-  const app = createApp(new Fleet(store), "board");
+  const key = sessionKeyFromEnv({ WATCH_SECRET: "server-side-key" });
+  const app = createApp(new Fleet(store), "board", "", key);
   const session = await loginCookie(app, "board");
 
   const out = await app.request("/api/logout", { method: "POST", headers: { cookie: session } });
   assert.equal(out.status, 200);
   assert.match(out.headers.get("set-cookie") ?? "", /Max-Age=0/);
 
-  const expired = sessionToken("board", Date.now() - SESSION_TTL_MS - 1000);
+  const expired = sessionToken(key, Date.now() - SESSION_TTL_MS - 1000);
   const denied = await app.request("/api/sites", { headers: { cookie: `watch=${expired}` } });
   assert.equal(denied.status, 401);
 
-  const ok = await app.request("/api/sites", { headers: { cookie: session } });
+  assert.notEqual(sessionToken(key, 1), sessionToken(key, 1));
+
+  const forged = await app.request("/api/sites", {
+    headers: { cookie: `watch=${sessionToken(sessionKeyFromEnv({ WATCH_SECRET: "wrong-key" }))}` },
+  });
+  assert.equal(forged.status, 401);
+
+  // The cookie still carries a good signature; logout revoked its nonce server-side.
+  const revoked = await app.request("/api/sites", { headers: { cookie: session } });
+  assert.equal(revoked.status, 401);
+
+  const fresh = await loginCookie(app, "board");
+  const ok = await app.request("/api/sites", { headers: { cookie: fresh } });
   assert.equal(ok.status, 200);
   await store.close();
 });

@@ -96,7 +96,7 @@ test("helperPluginFile serves the WordPress plugin from disk", () => {
   assert.match(file.body, /wwatch_run_update/);
   assert.match(file.body, /wwatch_run_repair/);
   assert.match(file.body, /wwatch_health/);
-  assert.match(file.body, /Version: 1\.3\.1/);
+  assert.match(file.body, /Version: 1\.4\.0/);
   assert.match(file.body, /"\/status"/);
   assert.match(file.body, /"repair"/);
   assert.match(file.body, /\/health/);

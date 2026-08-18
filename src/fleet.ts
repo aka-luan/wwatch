@@ -21,7 +21,7 @@ import {
 } from "./domain.js";
 import { sendAlerts, type AlertConfig } from "./alert.js";
 import { applyHelperRepair, applyHelperUpdate, mintLoginLink } from "./helper.js";
-import { assertConnect, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
+import { assertConnect, assertPublicOrigin, defaultDeps, runScan, setPluginStatus, type ScanDeps } from "./scan.js";
 import { Store, type StoredSite } from "./store.js";
 
 export type Defer = (work: Promise<unknown>) => void;
@@ -114,6 +114,14 @@ export class Fleet {
     return this.#store.clearLoginFailures(ip);
   }
 
+  revokeSession(nonce: string, expiresAt: number): Promise<void> {
+    return this.#store.revokeSession(nonce, expiresAt);
+  }
+
+  sessionRevoked(nonce: string): Promise<boolean> {
+    return this.#store.sessionRevoked(nonce);
+  }
+
   async startScan(id: SiteId, defer: Defer = (work) => void work): Promise<{ id: ScanId }> {
     const current = await this.#store.getJob(id);
     if (current) {
@@ -138,6 +146,7 @@ export class Fleet {
     if (!site) {
       throw new Error("Unknown site");
     }
+    await assertPublicOrigin(site.origin, this.#deps);
     return setPluginStatus(site, parsePluginRef(input.plugin), input.status, this.#deps);
   }
 
@@ -146,6 +155,7 @@ export class Fleet {
     if (!site) {
       throw new Error("Unknown site");
     }
+    await assertPublicOrigin(site.origin, this.#deps);
     return mintLoginLink(site, this.#deps);
   }
 
@@ -161,6 +171,7 @@ export class Fleet {
     if (!site) {
       throw new Error("Unknown site");
     }
+    await assertPublicOrigin(site.origin, this.#deps);
     const result = await applyHelperUpdate(site, target, this.#deps);
     const scan = await this.startScan(id, defer);
     return { detail: result.detail, id: scan.id };
@@ -178,6 +189,7 @@ export class Fleet {
     if (!site) {
       throw new Error("Unknown site");
     }
+    await assertPublicOrigin(site.origin, this.#deps);
     const result = await applyHelperRepair(site, target, this.#deps);
     const scan = await this.startScan(id, defer);
     return { detail: result.detail, id: scan.id };
