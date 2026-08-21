@@ -25,11 +25,12 @@ export const PlatformSection: React.FC = () => {
           <div className="lg:col-span-6 flex flex-col justify-start">
             <h2 className="text-3xl sm:text-4xl md:text-5xl lg:text-[3.25rem] font-bold text-white tracking-[-0.03em] leading-[1.1] font-display">
               One control plane <br />
-              for every WordPress site<span className="inline-block w-2.5 h-2.5 sm:w-3 sm:h-3 bg-brand-orange ml-1 align-baseline translate-y-[-2px]" />
+              for every WordPress site
             </h2>
+            <div className="w-3.5 h-3.5 bg-brand-orange mt-4 sm:mt-5" />
 
             <p className="mt-6 text-sm sm:text-base text-neutral-400 leading-relaxed font-sans max-w-xl">
-              wwatch centralizes uptime, SSL, plugin updates, backups, and incident visibility across your entire WordPress fleet—so agencies and operators can act before clients ever notice.
+              WWatch centralizes uptime, SSL, plugin updates, backups, and incident visibility across your entire WordPress fleet—so agencies and operators can act before clients ever notice.
             </p>
 
             {/* 4 Stats in a row with vertical dividers */}
@@ -38,7 +39,7 @@ export const PlatformSection: React.FC = () => {
               {/* Stat 1 */}
               <div className="flex flex-col sm:border-r sm:border-white/[0.08] sm:pr-4">
                 <div className="flex items-center gap-2 text-xl sm:text-2xl font-bold font-display text-white tracking-tight">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />
                   <span>42,000+</span>
                 </div>
                 <div className="mt-1 text-[10.5px] font-mono text-neutral-500 tracking-wider uppercase">
@@ -49,7 +50,7 @@ export const PlatformSection: React.FC = () => {
               {/* Stat 2 */}
               <div className="flex flex-col sm:border-r sm:border-white/[0.08] sm:px-4">
                 <div className="flex items-center gap-2 text-xl sm:text-2xl font-bold font-display text-white tracking-tight">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />
                   <span>1,280</span>
                 </div>
                 <div className="mt-1 text-[10.5px] font-mono text-neutral-500 tracking-wider uppercase">
@@ -60,7 +61,7 @@ export const PlatformSection: React.FC = () => {
               {/* Stat 3 */}
               <div className="flex flex-col sm:border-r sm:border-white/[0.08] sm:px-4">
                 <div className="flex items-center gap-2 text-xl sm:text-2xl font-bold font-display text-white tracking-tight">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />
                   <span>99.98%</span>
                 </div>
                 <div className="mt-1 text-[10.5px] font-mono text-neutral-500 tracking-wider uppercase">
@@ -71,7 +72,7 @@ export const PlatformSection: React.FC = () => {
               {/* Stat 4 */}
               <div className="flex flex-col sm:pl-4">
                 <div className="flex items-center gap-2 text-xl sm:text-2xl font-bold font-display text-white tracking-tight">
-                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-brand-orange shrink-0" />
                   <span>34</span>
                 </div>
                 <div className="mt-1 text-[10.5px] font-mono text-neutral-500 tracking-wider uppercase">

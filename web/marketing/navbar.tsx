@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Menu, X } from 'lucide-react';
+import { ChevronDown, Menu, X } from 'lucide-react';
 
 export const Navbar: React.FC = () => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -32,17 +32,21 @@ export const Navbar: React.FC = () => {
               </svg>
             </div>
             <span className="font-bold text-lg tracking-tight text-white font-sans">
-              wwatch
+              WWatch
             </span>
           </a>
 
           {/* Desktop Nav Links */}
           <nav className="hidden md:flex items-center gap-6 text-sm text-neutral-300 font-medium">
-            <a href="#platform" className="hover:text-white transition-colors py-1">
-              Platform
+            <a href="#platform" className="inline-flex items-center gap-1 hover:text-white transition-colors py-1">
+              <span>Platform</span>
+              <ChevronDown className="w-3.5 h-3.5 text-neutral-400" />
             </a>
             <a href="#features" className="hover:text-white transition-colors py-1">
               Features
+            </a>
+            <a href="#customers" className="hover:text-white transition-colors py-1">
+              Customers
             </a>
             <a
               href="https://github.com/aka-luan/wwatch"
@@ -70,7 +74,7 @@ export const Navbar: React.FC = () => {
             href="/app"
             className="inline-flex items-center justify-center px-4 py-2 text-xs font-bold tracking-wide uppercase font-mono text-black bg-white rounded-md hover:bg-neutral-200 transition-colors shadow-sm active:scale-[0.98]"
           >
-            Open dashboard
+            START MONITORING
           </a>
         </div>
 
@@ -78,9 +82,9 @@ export const Navbar: React.FC = () => {
         <div className="md:hidden flex items-center gap-3">
           <a
             href="/app"
-            className="px-3 py-1.5 text-xs font-bold font-mono text-black bg-white rounded-md"
+            className="px-3 py-1.5 text-xs font-bold font-mono uppercase text-black bg-white rounded-md"
           >
-            Dashboard
+            Start
           </a>
           <button
             type="button"
@@ -112,6 +116,13 @@ export const Navbar: React.FC = () => {
               Features
             </a>
             <a
+              href="#customers"
+              onClick={() => setMobileMenuOpen(false)}
+              className="hover:text-white py-1"
+            >
+              Customers
+            </a>
+            <a
               href="https://github.com/aka-luan/wwatch"
               target="_blank"
               rel="noopener noreferrer"
@@ -138,9 +149,9 @@ export const Navbar: React.FC = () => {
             <a
               href="/app"
               onClick={() => setMobileMenuOpen(false)}
-              className="text-center text-xs font-bold font-mono text-black bg-white rounded-md py-2.5"
+              className="text-center text-xs font-bold font-mono uppercase text-black bg-white rounded-md py-2.5"
             >
-              Open dashboard
+              START MONITORING
             </a>
           </div>
         </div>

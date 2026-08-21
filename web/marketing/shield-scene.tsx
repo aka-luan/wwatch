@@ -15,7 +15,7 @@ export const ShieldScene: React.FC = () => {
     const height = container.clientHeight || 500;
 
     const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 0, 14);
+    camera.position.set(0, 0, 11.8);
 
     let renderer: THREE.WebGLRenderer | null = null;
     try {
@@ -87,7 +87,7 @@ export const ShieldScene: React.FC = () => {
     };
 
     // Grid sampling for the shield surface
-    const step = 0.15;
+    const step = 0.12;
     for (let y = -3.2; y <= 3.2; y += step) {
       for (let x = -2.8; x <= 2.8; x += step) {
         if (isInsideShield(x, y)) {
@@ -125,10 +125,10 @@ export const ShieldScene: React.FC = () => {
     shieldGeometry.setAttribute('color', new THREE.Float32BufferAttribute(shieldColors, 3));
 
     const shieldMaterial = new THREE.PointsMaterial({
-      size: 0.14,
+      size: 0.15,
       vertexColors: true,
       transparent: true,
-      opacity: 0.9,
+      opacity: 0.95,
       map: particleTexture || undefined,
       blending: THREE.AdditiveBlending,
       depthWrite: false,

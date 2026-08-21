@@ -28,7 +28,7 @@ const iconMap: Record<string, React.ReactNode> = {
 
 export const HeroSection: React.FC = () => {
   return (
-    <section className="relative min-h-[92vh] pt-8 pb-16 overflow-hidden flex flex-col justify-between">
+    <section className="relative min-h-[88vh] pt-6 pb-16 lg:pb-20 overflow-hidden flex flex-col justify-center">
       {/* 3D Background Signal Network */}
       <HeroThreeScene />
 
@@ -40,7 +40,7 @@ export const HeroSection: React.FC = () => {
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full flex-1 flex flex-col justify-center">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 lg:gap-8 items-start pt-4 lg:pt-8">
           
-          {/* Left Column: Massive Editorial Typography & CTAs (5 cols) */}
+          {/* Left Column: Massive Editorial Typography & CTAs (5.5 cols) */}
           <div className="lg:col-span-5 xl:col-span-5 flex flex-col justify-start">
             <h1 className="text-4xl sm:text-5xl md:text-6xl xl:text-[4.25rem] font-extrabold tracking-[-0.04em] leading-[0.98] uppercase text-white font-display select-none">
               <span className="block text-white">UNMISSABLE</span>
@@ -48,7 +48,8 @@ export const HeroSection: React.FC = () => {
               <span className="block text-white">
                 MONITORING<span className="inline-block w-3 h-3 md:w-3.5 md:h-3.5 bg-brand-orange ml-1 align-baseline translate-y-[-2px]" />
               </span>
-              <span className="block text-stroke-white">ZERO-SURPRISE</span>
+              <span className="block text-stroke-white">ZERO-</span>
+              <span className="block text-stroke-white">SURPRISE</span>
               <span className="block text-stroke-white">
                 OPS<span className="inline-block w-3 h-3 md:w-3.5 md:h-3.5 bg-brand-orange ml-1 align-baseline translate-y-[-2px]" />
               </span>
@@ -64,15 +65,15 @@ export const HeroSection: React.FC = () => {
                 href="/app"
                 className="inline-flex items-center justify-center gap-2 px-6 py-3.5 text-sm font-semibold text-white bg-brand-orange hover:bg-brand-orange-hover rounded-md transition-all shadow-glow-orange hover:shadow-glow-subtle active:scale-[0.98]"
               >
-                <span>Open dashboard</span>
+                <span>Start monitoring</span>
                 <ArrowRight className="w-4 h-4" />
               </a>
 
               <a
-                href="#platform"
+                href="#demo"
                 className="inline-flex items-center justify-center px-6 py-3.5 text-sm font-medium text-neutral-200 bg-[#12141A]/90 hover:bg-[#1A1D24] border border-white/10 hover:border-white/20 rounded-md transition-colors active:scale-[0.98]"
               >
-                Explore platform
+                Book a demo
               </a>
             </div>
 
@@ -110,7 +111,7 @@ export const HeroSection: React.FC = () => {
             </div>
           </div>
 
-          {/* Right Column: Monitored Signals & Event Details Card (7 cols) */}
+          {/* Right Column: Monitored Signals & Event Details Card (6.5 - 7 cols) */}
           <div className="lg:col-span-7 xl:col-span-7 grid grid-cols-1 md:grid-cols-12 gap-4 lg:gap-5 items-start">
             
             {/* Monitored Signals Column (md: 5 cols) */}
@@ -203,13 +204,13 @@ export const HeroSection: React.FC = () => {
                     <span className="text-neutral-400">"severity"</span>: <span className="text-red-400">"critical"</span>,
                   </div>
                   <div>
-                    <span className="text-neutral-400">"detected_at"</span>: <span className="text-neutral-300">"2026-08-20T10:24:31Z"</span>,
+                    <span className="text-neutral-400">"detected_at"</span>: <span className="text-neutral-300">"2025-05-27T10:24:31Z"</span>,
                   </div>
                   <div>
                     <span className="text-neutral-400">"url"</span>: <span className="text-sky-300 underline decoration-sky-700/50">"https://agency-example.com/wp-admin/"</span>,
                   </div>
                   <div>
-                    <span className="text-neutral-400">"php_version"</span>: <span className="text-neutral-300">"8.2.14"</span>,
+                    <span className="text-neutral-400">"php_version"</span>: <span className="text-neutral-300">"8.1.22"</span>,
                   </div>
                   <div>
                     <span className="text-neutral-400">"environment"</span>: <span className="text-emerald-400">"production"</span>
@@ -256,71 +257,6 @@ export const HeroSection: React.FC = () => {
 
             </div>
 
-          </div>
-
-        </div>
-
-        {/* Bottom Hero Metric Tiles (4 Columns) */}
-        <div className="mt-16 grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4">
-          
-          <div className="p-4 sm:p-5 rounded-xl bg-[#0C0E13]/80 border border-white/[0.07] flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
-              <span>SITES ONLINE</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-bold font-display text-white tracking-tight">
-                99.4%
-              </div>
-              <div className="mt-1 text-[11px] font-mono text-neutral-500">
-                Last 24h
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 rounded-xl bg-[#0C0E13]/80 border border-white/[0.07] flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
-              <span>INCIDENTS</span>
-              <span className="w-2 h-2 rounded-full bg-red-400" />
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-bold font-display text-white tracking-tight">
-                2
-              </div>
-              <div className="mt-1 text-[11px] font-mono text-neutral-500">
-                Last 24h
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 rounded-xl bg-[#0C0E13]/80 border border-white/[0.07] flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
-              <span>UPDATES AVAILABLE</span>
-              <span className="w-2 h-2 rounded-full bg-amber-400" />
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-bold font-display text-white tracking-tight">
-                17
-              </div>
-              <div className="mt-1 text-[11px] font-mono text-neutral-500">
-                Across 42 sites
-              </div>
-            </div>
-          </div>
-
-          <div className="p-4 sm:p-5 rounded-xl bg-[#0C0E13]/80 border border-white/[0.07] flex flex-col justify-between">
-            <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400 uppercase tracking-wider">
-              <span>BACKUPS OK</span>
-              <span className="w-2 h-2 rounded-full bg-emerald-400" />
-            </div>
-            <div className="mt-3">
-              <div className="text-2xl sm:text-3xl font-bold font-display text-white tracking-tight">
-                100%
-              </div>
-              <div className="mt-1 text-[11px] font-mono text-neutral-500">
-                Last 24h
-              </div>
-            </div>
           </div>
 
         </div>
