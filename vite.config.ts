@@ -21,6 +21,7 @@ export default defineConfig({
     rollupOptions: {
       input: {
         main: path.resolve(rootDir, "./web/index.html"),
+        app: path.resolve(rootDir, "./web/app.html"),
         login: path.resolve(rootDir, "./web/login.html"),
       },
     },

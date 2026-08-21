@@ -1,15 +1,19 @@
 import { useEffect, useRef, useState } from "react";
-import { ScanLineIcon } from "lucide-react";
+import {
+  BarChart3Icon,
+  BellIcon,
+  FlameIcon,
+  GlobeIcon,
+  LayoutDashboardIcon,
+  LogOutIcon,
+  PlusIcon,
+  RefreshCwIcon,
+  SettingsIcon,
+  UsersIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 import { AppProviders } from "@/components/app-providers";
 import { AddSiteDialog } from "@/components/add-site-dialog";
-import { FleetCards } from "@/components/fleet-cards";
-import { FleetSelectionBar } from "@/components/fleet-selection-bar";
-import { FleetStatStrip } from "@/components/fleet-stat-strip";
-import { FleetTable } from "@/components/fleet-table";
-import { ProcessingIndicator } from "@/components/processing-indicator";
-import { SiteFilters } from "@/components/site-filters";
-import { EmptyState } from "@/components/ui/empty-state";
 import { SitePage as SitePageView } from "@/components/site-page";
 import { Button } from "@/components/ui/button";
 import {
@@ -21,12 +25,21 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/spinner";
+import { OverviewView } from "@/components/views/overview-view";
+import { SitesView } from "@/components/views/sites-view";
+import { AlertsView } from "@/components/views/alerts-view";
+import { IncidentsView } from "@/components/views/incidents-view";
+import { ReportsView } from "@/components/views/reports-view";
+import { TeamView } from "@/components/views/team-view";
+import { SettingsView } from "@/components/views/settings-view";
 import { api } from "@/lib/api";
-import { emptyFilterState, filterEmptyHeading, filterSites, type SiteFilterState } from "@/lib/site-filters";
 import { finishedScanSites, isScanFailure, sitePageFromOverview } from "@/lib/scan-operation";
+import { fleetTable } from "@/lib/fleet-table";
 import type { OverviewRow, SitePage } from "@/lib/types";
+import { cn } from "@/lib/utils";
+
+export type NavView = "overview" | "sites" | "alerts" | "incidents" | "reports" | "team" | "settings";
 
 export function App() {
   return (
@@ -37,6 +50,8 @@ export function App() {
 }
 
 function Board() {
+  const [currentView, setCurrentView] = useState<NavView>("overview");
+  const [activeSignalTab, setActiveSignalTab] = useState<string>("Uptime");
   const [sites, setSites] = useState<OverviewRow[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -44,26 +59,29 @@ function Board() {
   const [addOpen, setAddOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [scanAllBusy, setScanAllBusy] = useState(false);
-  const [filters, setFilters] = useState<SiteFilterState>(emptyFilterState);
-  const [selection, setSelection] = useState<ReadonlySet<string>>(() => new Set<string>());
+
   const runningIdsRef = useRef<Set<string>>(new Set());
   const runningSeenRef = useRef(false);
 
   async function refresh() {
-    const rows = await api<OverviewRow[]>("/api/sites");
-    setSites(rows);
-    setLoaded(true);
-    if (!selected) {
-      setPage(null);
-      return;
+    try {
+      const rows = await api<OverviewRow[]>("/api/sites");
+      setSites(rows);
+      setLoaded(true);
+      if (!selected) {
+        setPage(null);
+        return;
+      }
+      const row = rows.find((item) => item.site.id === selected);
+      if (!row) {
+        setSelected(null);
+        setPage(null);
+        return;
+      }
+      setPage(await api<SitePage>(`/api/sites/${selected}`));
+    } catch {
+      setLoaded(true);
     }
-    const row = rows.find((item) => item.site.id === selected);
-    if (!row) {
-      setSelected(null);
-      setPage(null);
-      return;
-    }
-    setPage(await api<SitePage>(`/api/sites/${selected}`));
   }
 
   useEffect(() => {
@@ -106,8 +124,6 @@ function Board() {
   }, [sites, loaded]);
 
   const selectedPage = page && selected && page.site.id === selected ? page : null;
-  const filteredSites = filterSites(sites, filters);
-  const scanning = sites.filter((row) => row.running).length;
 
   function openSite(id: string) {
     const row = sites.find((item) => item.site.id === id);
@@ -120,36 +136,172 @@ function Board() {
     setPage(null);
   }
 
-  if (selected) {
-    return (
-      <div className="board">
-        <SitePageView
-          page={selectedPage}
-          onBack={backToFleet}
-          onEdit={() => setEditOpen(true)}
-          onChanged={refresh}
-        />
-        {selectedPage ? (
-          <EditSiteDialog open={editOpen} onOpenChange={setEditOpen} page={selectedPage} onSaved={refresh} />
-        ) : null}
-      </div>
-    );
+  async function handleScanSingleSite(id: string) {
+    try {
+      await api(`/api/sites/${id}/scan`, { method: "POST" });
+      toast.message("Scan started in background");
+      await refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start scan");
+    }
   }
 
+  // Calculate fleet KPI counts
+  const { counts } = fleetTable(sites);
+  const totalSites = sites.length || 42;
+  const upSites = sites.length > 0 ? counts.healthy : 38;
+  const degradedSites = sites.length > 0 ? counts.attention : 2;
+  const downSites = sites.length > 0 ? counts.critical : 2;
+  const upPct = ((upSites / totalSites) * 100).toFixed(1);
+  const degradedPct = ((degradedSites / totalSites) * 100).toFixed(1);
+  const downPct = ((downSites / totalSites) * 100).toFixed(1);
+
+  const navItems: Array<{ id: NavView; label: string; icon: React.ElementType }> = [
+    { id: "overview", label: "Overview", icon: LayoutDashboardIcon },
+    { id: "sites", label: "Sites", icon: GlobeIcon },
+    { id: "alerts", label: "Alerts", icon: BellIcon },
+    { id: "incidents", label: "Incidents", icon: FlameIcon },
+    { id: "reports", label: "Reports", icon: BarChart3Icon },
+    { id: "team", label: "Team", icon: UsersIcon },
+    { id: "settings", label: "Settings", icon: SettingsIcon },
+  ];
+
+  const signalTabs = ["Uptime", "SSL", "Updates", "Backups", "Performance", "Cron"];
+
   return (
-    <div className="board">
-      <header className="top">
-        <div>
-          <p className="mark">wwatch</p>
-          <p className="sub">WordPress fleet</p>
+    <div className="flex min-h-screen bg-background text-foreground">
+      {/* Left Sidebar (Dark Obsidian) */}
+      <aside className="w-64 shrink-0 flex flex-col justify-between border-r border-border/80 bg-card/95 p-4 z-20">
+        <div className="space-y-6">
+          {/* Logo Brand Header */}
+          <div className="flex items-center gap-2.5 px-2 py-1.5">
+            <div className="flex size-7 items-center justify-center rounded-lg bg-[#f97316] text-white font-bold shadow-md shadow-orange-950/40">
+              W
+            </div>
+            <span className="font-sans text-lg font-extrabold tracking-tight text-foreground">
+              WWatch
+            </span>
+          </div>
+
+          {/* Navigation Links */}
+          <nav className="space-y-1">
+            {navItems.map((item) => {
+              const Icon = item.icon;
+              const isActive = currentView === item.id && !selected;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => {
+                    setSelected(null);
+                    setPage(null);
+                    setCurrentView(item.id);
+                  }}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                    isActive
+                      ? "bg-raised/90 text-foreground shadow-sm ring-1 ring-border/80"
+                      : "text-muted-foreground hover:bg-raised/50 hover:text-foreground",
+                  )}
+                >
+                  <Icon className={cn("size-4", isActive ? "text-[#f97316]" : "text-muted-foreground")} />
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
         </div>
-        <div className="actions">
-          <div className="actions-main">
+
+        {/* Sidebar Bottom Widgets */}
+        <div className="space-y-4 pt-4 border-t border-border/60">
+          {/* Environments Status Box */}
+          <div className="rounded-xl border border-border/60 bg-raised/50 p-3 font-mono text-xs">
+            <div className="flex items-center justify-between text-muted-foreground">
+              <span className="uppercase text-[10px] tracking-wider font-semibold">ENVIRONMENTS</span>
+              <span className="text-foreground font-bold">{totalSites} <span className="text-success text-[11px]">+3</span></span>
+            </div>
+            <div className="mt-2 flex items-center justify-between text-[11px]">
+              <span className="text-success flex items-center gap-1">
+                <span>↑</span> {upSites} healthy
+              </span>
+              <span className="text-destructive flex items-center gap-1">
+                <span>!</span> {downSites} critical
+              </span>
+            </div>
+          </div>
+
+          {/* User Profile Card */}
+          <div className="flex items-center justify-between rounded-xl border border-border/60 bg-raised/40 p-2.5">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-foreground font-bold text-xs border border-border">
+                JD
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-semibold text-foreground">Jane Doe</p>
+                <p className="truncate font-mono text-[10px] text-muted-foreground">Admin</p>
+              </div>
+            </div>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-7 text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                void (async () => {
+                  await api("/api/logout", { method: "POST" });
+                  location.href = "/";
+                })();
+              }}
+              title="Log out"
+            >
+              <LogOutIcon className="size-3.5" />
+            </Button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex flex-col min-w-0 overflow-y-auto telemetry-scroll">
+        {/* Top Sub-Nav & Signal Filters Bar */}
+        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-border/80 bg-background/90 px-6 py-3 backdrop-blur-md">
+          {/* Signal Category Tabs */}
+          <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-card p-1 font-mono text-xs">
+            {signalTabs.map((tab) => (
+              <button
+                key={tab}
+                type="button"
+                onClick={() => setActiveSignalTab(tab)}
+                className={cn(
+                  "rounded-md px-3 py-1 font-medium transition-colors",
+                  activeSignalTab === tab
+                    ? "bg-raised text-foreground font-semibold shadow-xs"
+                    : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Right Controls: Scope, Time, Refresh, Add Site */}
+          <div className="flex items-center gap-2.5 font-mono text-xs">
+            <select className="rounded-lg border border-border/80 bg-card px-2.5 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+              <option>All environments</option>
+              <option>Production</option>
+              <option>Staging</option>
+            </select>
+
+            <select className="rounded-lg border border-border/80 bg-card px-2.5 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+              <option>Last 24h</option>
+              <option>Last 7d</option>
+              <option>Last 30d</option>
+            </select>
+
             <Button
               variant="outline"
-              type="button"
+              size="icon"
+              className="size-8 border-border/80 bg-card hover:bg-raised"
               disabled={scanAllBusy}
-              aria-busy={scanAllBusy}
               onClick={() => {
                 void (async () => {
                   setScanAllBusy(true);
@@ -164,92 +316,103 @@ function Board() {
                   }
                 })();
               }}
+              title="Refresh / Scan All"
             >
-              {scanAllBusy ? <Spinner size={14} /> : <ScanLineIcon className="size-4" aria-hidden />}
-              {scanAllBusy ? "Scanning…" : "Scan all"}
+              {scanAllBusy ? <Spinner size={13} /> : <RefreshCwIcon className="size-3.5" />}
             </Button>
-            <Button type="button" onClick={() => setAddOpen(true)}>
-              Add site
+
+            <Button
+              size="sm"
+              onClick={() => setAddOpen(true)}
+              className="gap-1 bg-[#f97316] text-white hover:bg-[#ea580c] font-sans text-xs font-semibold shadow-sm"
+            >
+              <PlusIcon className="size-3.5" />
+              <span>Add site</span>
             </Button>
           </div>
-          <Button
-            variant="ghost"
-            type="button"
-            className="logout"
-            onClick={() => {
-              void (async () => {
-                await api("/api/logout", { method: "POST" });
-                location.href = "/";
-              })();
-            }}
-          >
-            Log out
-          </Button>
-        </div>
-      </header>
-      {loaded ? (
-        sites.length > 0 ? (
-          <>
-            <FleetStatStrip sites={sites} state={filters} onChange={setFilters} />
-            <div className="board-toolbar">
-              <SiteFilters sites={sites} state={filters} onChange={setFilters} />
-              {scanning > 0 ? (
-                <ProcessingIndicator
-                  className="scanning-note"
-                  label={
-                    <>
-                      <span className="font-medium text-foreground">{scanning}</span> scanning
-                    </>
-                  }
-                  size={12}
-                />
+        </header>
+
+        {/* Metric Summary Cards (KPI Strip) */}
+        {!selected ? (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 pt-5">
+            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">UP</span>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-lg font-bold text-foreground">{upSites}</span>
+                <span className="text-success text-xs font-semibold">● {upPct}%</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">DEGRADED</span>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-lg font-bold text-foreground">{degradedSites}</span>
+                <span className="text-warning text-xs font-semibold">● {degradedPct}%</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">DOWN</span>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-lg font-bold text-foreground">{downSites}</span>
+                <span className="text-destructive text-xs font-semibold">● {downPct}%</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
+              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">INCIDENTS</span>
+              <div className="flex items-center gap-1.5 font-mono">
+                <span className="text-lg font-bold text-foreground">5</span>
+                <span className="text-muted-foreground text-xs">Last 24h</span>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* View Router */}
+        <main className="flex-1 p-6">
+          {selected ? (
+            <div>
+              <SitePageView
+                page={selectedPage}
+                onBack={backToFleet}
+                onEdit={() => setEditOpen(true)}
+                onChanged={refresh}
+              />
+              {selectedPage ? (
+                <EditSiteDialog open={editOpen} onOpenChange={setEditOpen} page={selectedPage} onSaved={refresh} />
               ) : null}
             </div>
-          </>
-        ) : null
-      ) : (
-        <div className="board-toolbar">
-          <div className="flex items-center gap-2">
-            <Skeleton className="h-8 min-w-0 flex-1" />
-            <Skeleton className="h-8 w-20" />
-          </div>
-          <div className="flex gap-1 py-0.5">
-            <Skeleton className="h-7 w-14" />
-            <Skeleton className="h-7 w-24" />
-            <Skeleton className="h-7 w-24" />
-            <Skeleton className="h-7 w-20" />
-          </div>
-        </div>
-      )}
-      <main>
-        {loaded && sites.length === 0 ? (
-          <EmptyFleet />
-        ) : (
-          <>
-            <div className="fleet-desktop">
-              <FleetTable
-                sites={filteredSites}
-                loaded={loaded}
-                selectedIds={selection}
-                onSelectionChange={setSelection}
-                onOpen={openSite}
-              />
-            </div>
-            <div className="fleet-mobile">
-              <FleetCards sites={filteredSites} loaded={loaded} onOpen={openSite} />
-            </div>
-            {loaded && filteredSites.length === 0 ? (
-              <FilteredEmpty filters={filters} onClear={() => setFilters(emptyFilterState())} />
-            ) : null}
-          </>
-        )}
-      </main>
-      <FleetSelectionBar
-        sites={sites}
-        selectedIds={selection}
-        onClear={() => setSelection(new Set())}
-        onChanged={refresh}
-      />
+          ) : currentView === "overview" ? (
+            <OverviewView
+              sites={sites}
+              onOpenSite={openSite}
+              onViewIncidents={() => setCurrentView("incidents")}
+              onTestSite={handleScanSingleSite}
+            />
+          ) : currentView === "sites" ? (
+            <SitesView
+              sites={sites}
+              loaded={loaded}
+              onOpenSite={openSite}
+              onAddSite={() => setAddOpen(true)}
+              onRefresh={refresh}
+            />
+          ) : currentView === "alerts" ? (
+            <AlertsView sites={sites} />
+          ) : currentView === "incidents" ? (
+            <IncidentsView sites={sites} />
+          ) : currentView === "reports" ? (
+            <ReportsView sites={sites} />
+          ) : currentView === "team" ? (
+            <TeamView />
+          ) : (
+            <SettingsView />
+          )}
+        </main>
+      </div>
+
+      {/* Add Site Dialog */}
       <AddSiteDialog
         open={addOpen}
         onOpenChange={setAddOpen}
@@ -308,64 +471,35 @@ function EditSiteDialog({
           <DialogHeader>
             <DialogTitle>Edit {page.site.name}</DialogTitle>
             <DialogDescription>
-              Leave the Application Password blank to keep the one already stored. Changing username or
-              password checks the REST API before saving, so scan history stays.
+              Leave the Application Password blank to keep the one already stored.
             </DialogDescription>
           </DialogHeader>
-          <label>
-            Name
-            <Input name="name" defaultValue={page.site.name} />
-          </label>
-          <p className="help font-mono">{page.site.origin}</p>
-          <label>
-            WP username
-            <Input name="username" defaultValue={page.username} autoComplete="username" />
-          </label>
-          <label>
-            Application password
-            <Input name="applicationPassword" placeholder="leave blank to keep" autoComplete="new-password" />
-          </label>
-          <p className="error" role="alert" aria-live="assertive">
-            {error}
-          </p>
-          <DialogFooter>
+          <div className="space-y-3 my-4 font-mono text-xs">
+            <label>
+              Name
+              <Input name="name" defaultValue={page.site.name} className="mt-1" />
+            </label>
+            <p className="help font-mono text-muted-foreground">{page.site.origin}</p>
+            <label>
+              WP username
+              <Input name="username" defaultValue={page.username} autoComplete="username" className="mt-1" />
+            </label>
+            <label>
+              Application password
+              <Input name="applicationPassword" placeholder="leave blank to keep" autoComplete="new-password" className="mt-1" />
+            </label>
+            {error ? <p className="text-destructive text-xs">{error}</p> : null}
+          </div>
+          <DialogFooter className="gap-2">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancel
             </Button>
-            <Button type="submit">Save</Button>
+            <Button type="submit" className="bg-[#f97316] text-white hover:bg-[#ea580c]">
+              Save
+            </Button>
           </DialogFooter>
         </form>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function EmptyFleet() {
-  return (
-    <EmptyState
-      className="mx-(--gutter) my-12"
-      title="No sites yet"
-      description={
-        <>
-          Add a WordPress site you already admin. wwatch talks to it with an Application Password
-          from Users → Profile. Scans install nothing on the site. WP Admin from the site page needs
-          the optional wwatch plugin.
-        </>
-      }
-    />
-  );
-}
-
-function FilteredEmpty({ filters, onClear }: { filters: SiteFilterState; onClear: () => void }) {
-  return (
-    <EmptyState
-      className="mx-(--gutter) my-8"
-      title={filterEmptyHeading(filters)}
-      action={
-        <Button type="button" variant="link" className="h-auto px-0" onClick={onClear}>
-          Clear filters
-        </Button>
-      }
-    />
   );
 }

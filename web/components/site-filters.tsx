@@ -22,7 +22,7 @@ export function SiteFilters({
   state,
   onChange,
 }: {
-  sites: OverviewRow[];
+  sites: readonly OverviewRow[];
   state: SiteFilterState;
   onChange: (next: SiteFilterState) => void;
 }) {

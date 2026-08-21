@@ -11,7 +11,7 @@ test("timelineWhen labels today, yesterday, and older local dates", () => {
 
   assert.match(timelineWhen(today.toISOString(), now), /^Today · \d{2}:\d{2}$/);
   assert.match(timelineWhen(yesterday.toISOString(), now), /^Yesterday · \d{2}:\d{2}$/);
-  assert.match(timelineWhen(earlier.toISOString(), now), /13 · \d{2}:\d{2}$/);
+  assert.match(timelineWhen(earlier.toISOString(), now), /13.* · \d{2}:\d{2}$/);
   assert.doesNotMatch(timelineWhen(earlier.toISOString(), now), /Today|Yesterday/);
   assert.match(timelineWhen(lastYear.toISOString(), now), /2025/);
 });

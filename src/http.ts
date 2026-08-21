@@ -47,6 +47,8 @@ export function createApp(fleet: Fleet, dashboardPassword = "", cronSecret = "")
       return;
     }
     const open = new Set([
+      "/",
+      "/index.html",
       "/login.html",
       "/login",
       "/login.js",
