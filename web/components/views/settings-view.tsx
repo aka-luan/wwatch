@@ -25,13 +25,13 @@ export function SettingsView() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 pb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
+          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
             <SettingsIcon className="size-5 text-muted-foreground" />
             <span>Fleet &amp; System Settings</span>
           </h2>
-          <p className="font-mono text-xs text-muted-foreground">
+          <p className="font-mono text-xs text-muted-foreground mt-0.5">
             Configure scan frequencies, notification tokens, and optional helper plugin
           </p>
         </div>
@@ -39,7 +39,7 @@ export function SettingsView() {
         <Button
           onClick={handleSave}
           disabled={saving}
-          className="gap-1.5 bg-[#f97316] text-white hover:bg-[#ea580c]"
+          className="gap-1.5 bg-[#FF4D22] text-white hover:bg-[#FF380B] font-sans font-semibold rounded-xl px-3.5 shadow-md shadow-orange-950/40"
         >
           <SaveIcon className="size-4" />
           <span>{saving ? "Saving…" : "Save Changes"}</span>
@@ -48,9 +48,9 @@ export function SettingsView() {
 
       <form onSubmit={handleSave} className="grid grid-cols-1 lg:grid-cols-2 gap-6 font-mono text-xs">
         {/* Scan Automation Settings */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl space-y-4">
-          <div className="border-b border-border/60 pb-3">
-            <h3 className="font-bold text-sm text-foreground font-sans">Automated Scan Frequency</h3>
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl space-y-4">
+          <div className="border-b border-white/6 pb-3">
+            <h3 className="font-bold text-sm text-white font-sans">Automated Scan Frequency</h3>
             <p className="text-muted-foreground mt-0.5">
               How often wwatch probes your fleet for reachability, plugins, and security
             </p>
@@ -61,7 +61,7 @@ export function SettingsView() {
             <select
               value={scanInterval}
               onChange={(e) => setScanInterval(e.target.value)}
-              className="mt-1.5 w-full rounded-md border border-border bg-raised p-2 text-foreground focus:outline-none focus:ring-1 focus:ring-ring"
+              className="mt-1.5 w-full rounded-xl border border-white/8 bg-[#090B0F] p-2.5 text-white focus:outline-none focus:ring-1 focus:ring-brand-orange"
             >
               <option value="1">Every 1 minute (Aggressive)</option>
               <option value="5">Every 5 minutes (Recommended)</option>
@@ -71,16 +71,16 @@ export function SettingsView() {
             </select>
           </label>
 
-          <div className="rounded-lg border border-border/50 bg-raised/30 p-3 text-muted-foreground leading-relaxed">
-            <span className="font-semibold text-foreground">Zero Agent Overhead:</span> Probes are
+          <div className="rounded-xl border border-white/6 bg-[#090B0F] p-3 text-muted-foreground leading-relaxed">
+            <span className="font-semibold text-white">Zero Agent Overhead:</span> Probes are
             dispatched asynchronously without placing load on the target WordPress servers.
           </div>
         </div>
 
         {/* Optional Helper Plugin */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl space-y-4">
-          <div className="border-b border-border/60 pb-3">
-            <h3 className="font-bold text-sm text-foreground font-sans">WWatch Helper Plugin</h3>
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl space-y-4">
+          <div className="border-b border-white/6 pb-3">
+            <h3 className="font-bold text-sm text-white font-sans">WWatch Helper Plugin</h3>
             <p className="text-muted-foreground mt-0.5">
               Optional plugin for single-click WP Admin magic login links and in-dashboard repair
             </p>
@@ -94,7 +94,7 @@ export function SettingsView() {
           <a
             href="/api/helper-plugin"
             download="wwatch-helper.php"
-            className="inline-flex items-center gap-2 rounded-lg border border-border/80 bg-raised px-4 py-2.5 font-semibold text-foreground hover:bg-raised/80 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/8 bg-[#090B0F] px-4 py-2.5 font-semibold text-white hover:bg-[#161B24] transition-colors"
           >
             <DownloadIcon className="size-4 text-emerald-400" />
             <span>Download Helper Plugin (.php)</span>
@@ -102,9 +102,9 @@ export function SettingsView() {
         </div>
 
         {/* Telegram Bot Settings */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl space-y-4">
-          <div className="border-b border-border/60 pb-3">
-            <h3 className="font-bold text-sm text-foreground font-sans">Telegram Bot Credentials</h3>
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl space-y-4">
+          <div className="border-b border-white/6 pb-3">
+            <h3 className="font-bold text-sm text-white font-sans">Telegram Bot Credentials</h3>
             <p className="text-muted-foreground mt-0.5">
               Direct alerts dispatched to Telegram chats or ops channels
             </p>
@@ -116,7 +116,7 @@ export function SettingsView() {
               type="password"
               value={telegramToken}
               onChange={(e) => setTelegramToken(e.target.value)}
-              className="mt-1 font-mono text-xs"
+              className="mt-1 bg-[#090B0F] border-white/8 rounded-xl font-mono text-xs"
             />
           </label>
 
@@ -125,15 +125,15 @@ export function SettingsView() {
             <Input
               value={telegramChatId}
               onChange={(e) => setTelegramChatId(e.target.value)}
-              className="mt-1 font-mono text-xs"
+              className="mt-1 bg-[#090B0F] border-white/8 rounded-xl font-mono text-xs"
             />
           </label>
         </div>
 
         {/* Resend Email Settings */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl space-y-4">
-          <div className="border-b border-border/60 pb-3">
-            <h3 className="font-bold text-sm text-foreground font-sans">Resend Email Delivery</h3>
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl space-y-4">
+          <div className="border-b border-white/6 pb-3">
+            <h3 className="font-bold text-sm text-white font-sans">Resend Email Delivery</h3>
             <p className="text-muted-foreground mt-0.5">
               Transactional email delivery for operational alerts
             </p>
@@ -145,7 +145,7 @@ export function SettingsView() {
               type="password"
               value={resendApiKey}
               onChange={(e) => setResendApiKey(e.target.value)}
-              className="mt-1 font-mono text-xs"
+              className="mt-1 bg-[#090B0F] border-white/8 rounded-xl font-mono text-xs"
             />
           </label>
 
@@ -155,7 +155,7 @@ export function SettingsView() {
               type="email"
               value={alertEmail}
               onChange={(e) => setAlertEmail(e.target.value)}
-              className="mt-1 font-mono text-xs"
+              className="mt-1 bg-[#090B0F] border-white/8 rounded-xl font-mono text-xs"
             />
           </label>
         </div>

@@ -54,13 +54,13 @@ export function ReportsView({ sites }: { sites: readonly OverviewRow[] }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 pb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <BarChart3Icon className="size-5 text-[#f97316]" />
+          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <BarChart3Icon className="size-5 text-[#FF4D22]" />
             <span>Fleet Health &amp; Compliance Reports</span>
           </h2>
-          <p className="font-mono text-xs text-muted-foreground">
+          <p className="font-mono text-xs text-muted-foreground mt-0.5">
             Generate executive compliance summaries, uptime SLA logs, and inventory exports
           </p>
         </div>
@@ -71,7 +71,7 @@ export function ReportsView({ sites }: { sites: readonly OverviewRow[] }) {
             variant="outline"
             disabled={downloading}
             onClick={exportCSV}
-            className="gap-2 font-mono text-xs"
+            className="gap-2 font-mono text-xs border-white/8 bg-[#0F1218] hover:bg-[#161B24] rounded-xl text-[#EDEDF0]"
           >
             <FileSpreadsheetIcon className="size-4 text-emerald-400" />
             <span>Export CSV</span>
@@ -81,7 +81,7 @@ export function ReportsView({ sites }: { sites: readonly OverviewRow[] }) {
             variant="outline"
             disabled={downloading}
             onClick={exportJSON}
-            className="gap-2 font-mono text-xs"
+            className="gap-2 font-mono text-xs border-white/8 bg-[#0F1218] hover:bg-[#161B24] rounded-xl text-[#EDEDF0]"
           >
             <FileTextIcon className="size-4 text-sky-400" />
             <span>Export JSON</span>
@@ -91,27 +91,27 @@ export function ReportsView({ sites }: { sites: readonly OverviewRow[] }) {
 
       {/* SLA Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="rounded-xl border border-border/80 bg-card p-4 shadow-md">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-md">
           <span className="font-mono text-xs text-muted-foreground uppercase">30-Day Fleet Uptime</span>
-          <p className="mt-2 text-2xl font-extrabold text-success">99.94%</p>
+          <p className="mt-2 text-2xl font-bold text-emerald-400 font-mono tracking-tight">99.94%</p>
           <span className="font-mono text-[11px] text-muted-foreground">Exceeds 99.9% SLA target</span>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card p-4 shadow-md">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-md">
           <span className="font-mono text-xs text-muted-foreground uppercase">Avg TTFB Latency</span>
-          <p className="mt-2 text-2xl font-extrabold text-foreground">184ms</p>
-          <span className="font-mono text-[11px] text-success">↑ 12ms faster than last week</span>
+          <p className="mt-2 text-2xl font-bold text-white font-mono tracking-tight">184ms</p>
+          <span className="font-mono text-[11px] text-emerald-400">↑ 12ms faster than last week</span>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card p-4 shadow-md">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-md">
           <span className="font-mono text-xs text-muted-foreground uppercase">Security Posture</span>
-          <p className="mt-2 text-2xl font-extrabold text-sky-400">98 / 100</p>
+          <p className="mt-2 text-2xl font-bold text-sky-400 font-mono tracking-tight">98 / 100</p>
           <span className="font-mono text-[11px] text-muted-foreground">0 exposed log files</span>
         </div>
 
-        <div className="rounded-xl border border-border/80 bg-card p-4 shadow-md">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-md">
           <span className="font-mono text-xs text-muted-foreground uppercase">Update Compliance</span>
-          <p className="mt-2 text-2xl font-extrabold text-amber-400">94.2%</p>
+          <p className="mt-2 text-2xl font-bold text-amber-400 font-mono tracking-tight">94.2%</p>
           <span className="font-mono text-[11px] text-muted-foreground">Core &amp; active plugins</span>
         </div>
       </div>
@@ -119,80 +119,80 @@ export function ReportsView({ sites }: { sites: readonly OverviewRow[] }) {
       {/* Breakdown Grid */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* PHP Version Distribution */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl">
-          <h3 className="text-sm font-bold text-foreground">PHP Runtime Distribution</h3>
-          <p className="font-mono text-xs text-muted-foreground mb-4">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl">
+          <h3 className="text-sm font-bold text-white font-sans">PHP Runtime Distribution</h3>
+          <p className="font-mono text-xs text-muted-foreground mb-4 mt-0.5">
             Active PHP versions across {sites.length || 8} WordPress environments
           </p>
 
-          <div className="space-y-3 font-mono text-xs">
+          <div className="space-y-3.5 font-mono text-xs">
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>PHP 8.2 / 8.3 (Recommended)</span>
-                <span className="text-success font-semibold">75%</span>
+                <span className="text-emerald-400 font-semibold">75%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-success rounded-full" style={{ width: "75%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: "75%" }} />
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>PHP 8.1 (Security Support)</span>
-                <span className="text-warning font-semibold">20%</span>
+                <span className="text-amber-400 font-semibold">20%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-warning rounded-full" style={{ width: "20%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-amber-500 rounded-full" style={{ width: "20%" }} />
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>PHP 8.0 or older (Legacy)</span>
-                <span className="text-destructive font-semibold">5%</span>
+                <span className="text-rose-400 font-semibold">5%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-destructive rounded-full" style={{ width: "5%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-rose-500 rounded-full" style={{ width: "5%" }} />
               </div>
             </div>
           </div>
         </div>
 
         {/* TLS Certificate Expiry Windows */}
-        <div className="rounded-xl border border-border/80 bg-card p-5 shadow-xl">
-          <h3 className="text-sm font-bold text-foreground">TLS Certificate Expiration Horizons</h3>
-          <p className="font-mono text-xs text-muted-foreground mb-4">
+        <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-5 shadow-xl">
+          <h3 className="text-sm font-bold text-white font-sans">TLS Certificate Expiration Horizons</h3>
+          <p className="font-mono text-xs text-muted-foreground mb-4 mt-0.5">
             Certificate renewal schedules &amp; automated verification
           </p>
 
-          <div className="space-y-3 font-mono text-xs">
+          <div className="space-y-3.5 font-mono text-xs">
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>&gt; 30 Days Valid (Healthy)</span>
-                <span className="text-success font-semibold">88%</span>
+                <span className="text-emerald-400 font-semibold">88%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-success rounded-full" style={{ width: "88%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-emerald-500 rounded-full" style={{ width: "88%" }} />
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>15 - 30 Days (Approaching Renewal)</span>
-                <span className="text-warning font-semibold">8%</span>
+                <span className="text-amber-400 font-semibold">8%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-warning rounded-full" style={{ width: "8%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-amber-500 rounded-full" style={{ width: "8%" }} />
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between mb-1">
+              <div className="flex justify-between mb-1.5">
                 <span>&lt; 14 Days (Urgent Attention)</span>
-                <span className="text-destructive font-semibold">4%</span>
+                <span className="text-rose-400 font-semibold">4%</span>
               </div>
-              <div className="h-2 w-full rounded-full bg-raised overflow-hidden">
-                <div className="h-full bg-destructive rounded-full" style={{ width: "4%" }} />
+              <div className="h-2 w-full rounded-full bg-[#090B0F] overflow-hidden border border-white/5">
+                <div className="h-full bg-rose-500 rounded-full" style={{ width: "4%" }} />
               </div>
             </div>
           </div>

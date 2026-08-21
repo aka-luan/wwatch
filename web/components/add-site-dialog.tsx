@@ -120,7 +120,7 @@ export function AddSiteDialog({
       <DialogContent
         className={cn(
           "flex max-h-[min(40rem,90dvh)] w-[calc(100%-1.5rem)] flex-col gap-0 overflow-hidden p-0",
-          "sm:max-w-[440px]",
+          "sm:max-w-[440px] bg-[#0F1218] border-white/10 text-foreground rounded-2xl shadow-2xl",
         )}
         showCloseButton={false}
       >
@@ -131,13 +131,13 @@ export function AddSiteDialog({
             void connect();
           }}
         >
-          <DialogHeader className="shrink-0 space-y-1.5 border-b border-border px-4 py-4 text-left">
-            <DialogTitle>Add a WordPress site</DialogTitle>
-            <DialogDescription>Connect using a WordPress Application Password.</DialogDescription>
+          <DialogHeader className="shrink-0 space-y-1.5 border-b border-white/6 px-5 py-4 text-left">
+            <DialogTitle className="text-white font-bold text-base">Add a WordPress site</DialogTitle>
+            <DialogDescription className="text-muted-foreground text-xs">Connect using a WordPress Application Password.</DialogDescription>
             <Collapsible open={helpOpen} onOpenChange={setHelpOpen}>
               <CollapsibleTrigger
                 type="button"
-                className="group inline-flex items-center gap-1 rounded-md text-left text-[13px] text-ring hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+                className="group inline-flex items-center gap-1 rounded-md text-left text-[13px] text-[#FF4D22] hover:underline focus-visible:ring-2 focus-visible:ring-brand-orange focus-visible:outline-none"
               >
                 {COPY.addSite.stepsTrigger}
                 <ChevronDownIcon
@@ -151,7 +151,7 @@ export function AddSiteDialog({
             </Collapsible>
           </DialogHeader>
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain px-4 py-4">
+          <div className="min-h-0 flex-1 space-y-3.5 overflow-y-auto overscroll-contain px-5 py-4">
             <Field
               formId={formId}
               name="name"
@@ -204,17 +204,17 @@ export function AddSiteDialog({
               required
             />
             {formError ? (
-              <p className="text-[13px] leading-5 text-destructive" role="alert" aria-live="assertive">
+              <p className="text-[13px] leading-5 text-rose-400" role="alert" aria-live="assertive">
                 {formError}
               </p>
             ) : null}
           </div>
 
-          <DialogFooter className="mx-0 mb-0 shrink-0 sm:justify-end">
-            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)}>
+          <DialogFooter className="mx-0 mb-0 shrink-0 border-t border-white/6 px-5 py-3.5 sm:justify-end gap-2 bg-[#090B0F]/50">
+            <Button type="button" variant="outline" disabled={busy} onClick={() => onOpenChange(false)} className="border-white/8 bg-[#090B0F] hover:bg-[#161B24] rounded-xl text-xs font-mono">
               Cancel
             </Button>
-            <Button type="submit" disabled={busy} aria-busy={busy}>
+            <Button type="submit" disabled={busy} aria-busy={busy} className="bg-[#FF4D22] text-white hover:bg-[#FF380B] rounded-xl font-semibold text-xs shadow-md shadow-orange-950/40">
               {busy ? <Spinner size={14} /> : null}
               {busy ? "Connecting…" : "Connect"}
             </Button>

@@ -13,19 +13,21 @@ export function ResponseTimeChart({
   const [hoveredPoint, setHoveredPoint] = useState<LatencyPoint | null>(null);
 
   // SVG dimensions
-  const width = 320;
-  const height = 90;
-  const paddingX = 10;
-  const paddingY = 14;
+  const width = 360;
+  const height = 100;
+  const paddingLeft = 32;
+  const paddingRight = 12;
+  const paddingTop = 12;
+  const paddingBottom = 16;
 
-  const minLatency = 300;
+  const minLatency = 200;
   const maxLatency = 1600;
 
   // Calculate points
   const points = data.map((d, index) => {
-    const x = paddingX + (index / (data.length - 1)) * (width - 2 * paddingX);
-    const normalizedY = (d.latencyMs - minLatency) / (maxLatency - minLatency);
-    const y = height - paddingY - normalizedY * (height - 2 * paddingY);
+    const x = paddingLeft + (index / (data.length - 1)) * (width - paddingLeft - paddingRight);
+    const normalizedY = Math.max(0, Math.min(1, (d.latencyMs - minLatency) / (maxLatency - minLatency)));
+    const y = height - paddingBottom - normalizedY * (height - paddingTop - paddingBottom);
     return { ...d, x, y };
   });
 
@@ -42,13 +44,13 @@ export function ResponseTimeChart({
   const firstPoint = points[0];
   const lastPoint = points[points.length - 1];
   const areaD = firstPoint && lastPoint
-    ? `${pathD} L ${lastPoint.x},${height} L ${firstPoint.x},${height} Z`
+    ? `${pathD} L ${lastPoint.x},${height - paddingBottom} L ${firstPoint.x},${height - paddingBottom} Z`
     : "";
 
   return (
     <div
       className={cn(
-        "relative flex flex-col rounded-xl border border-border/80 bg-card p-4 shadow-xl overflow-hidden",
+        "relative flex flex-col rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-xl overflow-hidden",
         className,
       )}
     >
@@ -61,8 +63,15 @@ export function ResponseTimeChart({
         </span>
       </div>
 
-      {/* SVG Sparkline Chart */}
-      <div className="relative mt-2 h-[95px] w-full">
+      {/* Sparkline Chart with Y-axis */}
+      <div className="relative mt-2 h-[105px] w-full">
+        {/* Y-axis labels */}
+        <div className="absolute left-0 top-0 bottom-[18px] flex flex-col justify-between font-mono text-[9px] text-muted-foreground/60 select-none pointer-events-none">
+          <span>1.5s</span>
+          <span>1s</span>
+          <span>500ms</span>
+        </div>
+
         <svg
           viewBox={`0 0 ${width} ${height}`}
           className="h-full w-full overflow-visible"
@@ -70,15 +79,40 @@ export function ResponseTimeChart({
         >
           <defs>
             <linearGradient id="areaGradient" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#f97316" stopOpacity="0.28" />
-              <stop offset="100%" stopColor="#f97316" stopOpacity="0.0" />
+              <stop offset="0%" stopColor="#FF4D22" stopOpacity="0.25" />
+              <stop offset="100%" stopColor="#FF4D22" stopOpacity="0.0" />
             </linearGradient>
             <linearGradient id="strokeGradient" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0%" stopColor="#f97316" />
-              <stop offset="70%" stopColor="#fb923c" />
-              <stop offset="100%" stopColor="#f97316" />
+              <stop offset="0%" stopColor="#FF4D22" />
+              <stop offset="70%" stopColor="#FF6842" />
+              <stop offset="100%" stopColor="#FF4D22" />
             </linearGradient>
           </defs>
+
+          {/* Faint horizontal guide lines */}
+          <line
+            x1={paddingLeft}
+            y1={paddingTop}
+            x2={width - paddingRight}
+            y2={paddingTop}
+            stroke="rgba(255,255,255,0.03)"
+            strokeDasharray="3 3"
+          />
+          <line
+            x1={paddingLeft}
+            y1={(paddingTop + (height - paddingBottom)) / 2}
+            x2={width - paddingRight}
+            y2={(paddingTop + (height - paddingBottom)) / 2}
+            stroke="rgba(255,255,255,0.03)"
+            strokeDasharray="3 3"
+          />
+          <line
+            x1={paddingLeft}
+            y1={height - paddingBottom}
+            x2={width - paddingRight}
+            y2={height - paddingBottom}
+            stroke="rgba(255,255,255,0.05)"
+          />
 
           {/* Area Fill */}
           <path d={areaD} fill="url(#areaGradient)" />
@@ -88,7 +122,7 @@ export function ResponseTimeChart({
             d={pathD}
             fill="none"
             stroke="url(#strokeGradient)"
-            strokeWidth="2.2"
+            strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
           />
@@ -102,15 +136,15 @@ export function ResponseTimeChart({
                     cx={p.x}
                     cy={p.y}
                     r="5"
-                    fill="#f97316"
+                    fill="#FF4D22"
                     className="animate-ping opacity-60"
                   />
                   <circle
                     cx={p.x}
                     cy={p.y}
                     r="3.5"
-                    fill="#ffffff"
-                    stroke="#f97316"
+                    fill="#FFFFFF"
+                    stroke="#FF4D22"
                     strokeWidth="2"
                   />
                 </g>
@@ -125,7 +159,7 @@ export function ResponseTimeChart({
               key={`hit-${idx}`}
               cx={p.x}
               cy={p.y}
-              r="10"
+              r="12"
               fill="transparent"
               className="cursor-pointer"
               onMouseEnter={() => setHoveredPoint(p)}
@@ -136,7 +170,7 @@ export function ResponseTimeChart({
       </div>
 
       {/* Time Axis Labels */}
-      <div className="mt-1 flex items-center justify-between font-mono text-[10px] text-muted-foreground/80">
+      <div className="mt-1 ml-7 flex items-center justify-between font-mono text-[10px] text-muted-foreground/70 select-none">
         <span>12:00</span>
         <span>16:00</span>
         <span>20:00</span>

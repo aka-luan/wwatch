@@ -76,8 +76,8 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
         Every site in the fleet, most urgent first. Sites with pending updates can be selected for a bulk update.
       </caption>
       <thead>
-        <tr className="border-b border-border bg-raised">
-          <th scope="col" className="w-[34px] py-2 pl-(--gutter)">
+        <tr className="border-b border-white/6 bg-[#090B0F]">
+          <th scope="col" className="w-[34px] py-2.5 pl-(--gutter)">
             <Checkbox
               checked={allSelected}
               indeterminate={someSelected && !allSelected}
@@ -91,7 +91,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
               key={column.key}
               scope="col"
               className={cn(
-                "py-2 pr-4 text-[12px] leading-none font-medium text-muted-foreground",
+                "py-2.5 pr-4 text-[12px] leading-none font-mono font-medium text-muted-foreground",
                 column.className,
               )}
             >
@@ -100,7 +100,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
           ))}
         </tr>
       </thead>
-      <tbody>
+      <tbody className="divide-y divide-white/4">
         {table.rows.map((row) => (
           <FleetTableRow
             key={row.row.site.id}
@@ -134,8 +134,8 @@ function FleetTableRow({
   return (
     <tr
       className={cn(
-        "border-b border-hairline transition-colors hover:bg-selected",
-        selected && "bg-selected",
+        "border-b border-white/4 transition-colors hover:bg-[#131720]",
+        selected && "bg-[#161B24]",
         RAIL[toneOf(row.status)],
       )}
     >

@@ -38,11 +38,11 @@ export function SitesView({
   return (
     <div className="space-y-4">
       {/* Action Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 pb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground">WordPress Fleet</h2>
-          <p className="font-mono text-xs text-muted-foreground">
-            {sites.length} sites connected · Automatic health scans &amp; updates
+          <h2 className="text-xl font-bold tracking-tight text-white">WordPress Fleet</h2>
+          <p className="font-mono text-xs text-muted-foreground mt-0.5">
+            {sites.length} sites connected · Zero monitoring agent required
           </p>
         </div>
 
@@ -66,12 +66,18 @@ export function SitesView({
                 }
               })();
             }}
+            className="border-white/8 bg-[#0F1218] hover:bg-[#161B24] text-[#EDEDF0] rounded-xl font-mono text-xs"
           >
-            {scanAllBusy ? <Spinner size={14} /> : <ScanLineIcon className="size-4" aria-hidden />}
+            {scanAllBusy ? <Spinner size={13} /> : <ScanLineIcon className="size-4" aria-hidden />}
             <span>{scanAllBusy ? "Scanning…" : "Scan all"}</span>
           </Button>
 
-          <Button size="sm" type="button" onClick={onAddSite} className="bg-[#f97316] text-white hover:bg-[#ea580c]">
+          <Button
+            size="sm"
+            type="button"
+            onClick={onAddSite}
+            className="bg-[#FF4D22] text-white hover:bg-[#FF380B] font-sans font-semibold rounded-xl px-3.5 shadow-md shadow-orange-950/40"
+          >
             <PlusIcon className="size-4 mr-1" />
             <span>Add site</span>
           </Button>
@@ -82,14 +88,14 @@ export function SitesView({
         sites.length > 0 ? (
           <>
             <FleetStatStrip sites={sites} state={filters} onChange={setFilters} />
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border bg-card p-3">
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-white/8 bg-[#0F1218] p-3.5 shadow-md">
               <SiteFilters sites={sites} state={filters} onChange={setFilters} />
               {scanning > 0 ? (
                 <ProcessingIndicator
                   className="font-mono text-xs"
                   label={
                     <>
-                      <span className="font-medium text-foreground">{scanning}</span> scanning
+                      <span className="font-medium text-white">{scanning}</span> scanning
                     </>
                   }
                   size={12}
@@ -100,20 +106,20 @@ export function SitesView({
         ) : null
       ) : (
         <div className="space-y-2">
-          <Skeleton className="h-10 w-full" />
-          <Skeleton className="h-12 w-full" />
+          <Skeleton className="h-10 w-full rounded-xl bg-white/5" />
+          <Skeleton className="h-12 w-full rounded-xl bg-white/5" />
         </div>
       )}
 
       {/* Main Table or Empty State */}
-      <div className="rounded-xl border border-border/80 bg-card overflow-hidden shadow-xl">
+      <div className="rounded-2xl border border-white/8 bg-[#0F1218] overflow-hidden shadow-xl">
         {loaded && sites.length === 0 ? (
           <EmptyState
             className="my-12 px-6"
             title="No sites connected yet"
             description="Add a WordPress site using an Application Password from Users → Profile. No monitoring plugins required on the WordPress site."
             action={
-              <Button onClick={onAddSite} className="bg-[#f97316] text-white hover:bg-[#ea580c]">
+              <Button onClick={onAddSite} className="bg-[#FF4D22] text-white hover:bg-[#FF380B] rounded-xl font-semibold shadow-md shadow-orange-950/40">
                 Connect your first site
               </Button>
             }
@@ -140,7 +146,7 @@ export function SitesView({
                     <Button
                       type="button"
                       variant="link"
-                      className="text-[#f97316]"
+                      className="text-[#FF4D22] font-semibold"
                       onClick={() => setFilters(emptyFilterState())}
                     >
                       Clear filters

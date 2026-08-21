@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import {
-  BarChart3Icon,
+  AlertTriangleIcon,
   BellIcon,
-  FlameIcon,
+  FileTextIcon,
   GlobeIcon,
-  LayoutDashboardIcon,
+  LayoutGridIcon,
   LogOutIcon,
   PlusIcon,
   RefreshCwIcon,
@@ -157,11 +157,11 @@ function Board() {
   const downPct = ((downSites / totalSites) * 100).toFixed(1);
 
   const navItems: Array<{ id: NavView; label: string; icon: React.ElementType }> = [
-    { id: "overview", label: "Overview", icon: LayoutDashboardIcon },
+    { id: "overview", label: "Overview", icon: LayoutGridIcon },
     { id: "sites", label: "Sites", icon: GlobeIcon },
     { id: "alerts", label: "Alerts", icon: BellIcon },
-    { id: "incidents", label: "Incidents", icon: FlameIcon },
-    { id: "reports", label: "Reports", icon: BarChart3Icon },
+    { id: "incidents", label: "Incidents", icon: AlertTriangleIcon },
+    { id: "reports", label: "Reports", icon: FileTextIcon },
     { id: "team", label: "Team", icon: UsersIcon },
     { id: "settings", label: "Settings", icon: SettingsIcon },
   ];
@@ -169,17 +169,17 @@ function Board() {
   const signalTabs = ["Uptime", "SSL", "Updates", "Backups", "Performance", "Cron"];
 
   return (
-    <div className="flex min-h-screen bg-background text-foreground">
-      {/* Left Sidebar (Dark Obsidian) */}
-      <aside className="w-64 shrink-0 flex flex-col justify-between border-r border-border/80 bg-card/95 p-4 z-20">
+    <div className="flex min-h-screen bg-[#07080B] text-[#EDEDF0] selection:bg-[#FF4D22] selection:text-white font-sans">
+      {/* Left Sidebar (Dark Obsidian - Matching Image) */}
+      <aside className="w-60 shrink-0 flex flex-col justify-between border-r border-white/6 bg-[#090B0F] p-4.5 z-20">
         <div className="space-y-6">
           {/* Logo Brand Header */}
-          <div className="flex items-center gap-2.5 px-2 py-1.5">
-            <div className="flex size-7 items-center justify-center rounded-lg bg-[#f97316] text-white font-bold shadow-md shadow-orange-950/40">
+          <div className="flex items-center gap-2.5 px-1 py-1">
+            <div className="flex size-7.5 items-center justify-center rounded-lg bg-[#FF4D22] text-white font-extrabold text-sm shadow-md shadow-orange-950/40">
               W
             </div>
-            <span className="font-sans text-lg font-extrabold tracking-tight text-foreground">
-              WWatch
+            <span className="font-sans text-lg font-bold tracking-tight text-white">
+              wwatch
             </span>
           </div>
 
@@ -198,14 +198,14 @@ function Board() {
                     setCurrentView(item.id);
                   }}
                   className={cn(
-                    "flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-all duration-150",
+                    "flex w-full items-center gap-3 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-150",
                     isActive
-                      ? "bg-raised/90 text-foreground shadow-sm ring-1 ring-border/80"
-                      : "text-muted-foreground hover:bg-raised/50 hover:text-foreground",
+                      ? "bg-[#161B24] text-white border border-white/10 shadow-xs"
+                      : "text-muted-foreground hover:bg-[#12151D] hover:text-[#EDEDF0]",
                   )}
                 >
-                  <Icon className={cn("size-4", isActive ? "text-[#f97316]" : "text-muted-foreground")} />
-                  <span>{item.label}</span>
+                  <Icon className={cn("size-4", isActive ? "text-[#FF4D22]" : "text-muted-foreground/80")} />
+                  <span className="font-medium text-[13px]">{item.label}</span>
                 </button>
               );
             })}
@@ -213,31 +213,38 @@ function Board() {
         </div>
 
         {/* Sidebar Bottom Widgets */}
-        <div className="space-y-4 pt-4 border-t border-border/60">
+        <div className="space-y-3.5 pt-4 border-t border-white/6">
           {/* Environments Status Box */}
-          <div className="rounded-xl border border-border/60 bg-raised/50 p-3 font-mono text-xs">
+          <div className="rounded-2xl border border-white/6 bg-[#0F1218] p-3.5 font-mono text-xs">
             <div className="flex items-center justify-between text-muted-foreground">
-              <span className="uppercase text-[10px] tracking-wider font-semibold">ENVIRONMENTS</span>
-              <span className="text-foreground font-bold">{totalSites} <span className="text-success text-[11px]">+3</span></span>
+              <span className="uppercase text-[10px] tracking-wider font-semibold text-muted-foreground/80">
+                ENVIRONMENTS
+              </span>
             </div>
-            <div className="mt-2 flex items-center justify-between text-[11px]">
-              <span className="text-success flex items-center gap-1">
+            <div className="mt-1 flex items-baseline gap-2">
+              <span className="text-xl font-bold text-white tracking-tight">{totalSites}</span>
+              <span className="inline-flex items-center rounded-md bg-emerald-500/15 px-1.5 py-0.2 text-[10px] font-semibold text-emerald-400 border border-emerald-500/20">
+                +3
+              </span>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between text-[11px]">
+              <span className="text-emerald-400 flex items-center gap-1 font-medium">
                 <span>↑</span> {upSites} healthy
               </span>
-              <span className="text-destructive flex items-center gap-1">
+              <span className="text-rose-400 flex items-center gap-1 font-medium">
                 <span>!</span> {downSites} critical
               </span>
             </div>
           </div>
 
           {/* User Profile Card */}
-          <div className="flex items-center justify-between rounded-xl border border-border/60 bg-raised/40 p-2.5">
+          <div className="flex items-center justify-between rounded-2xl border border-white/6 bg-[#0F1218] p-2.5">
             <div className="flex items-center gap-2.5 min-w-0">
-              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-primary/20 text-foreground font-bold text-xs border border-border">
+              <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-orange-500 to-indigo-600 text-white font-bold text-xs shadow-inner">
                 JD
               </div>
               <div className="min-w-0">
-                <p className="truncate text-xs font-semibold text-foreground">Jane Doe</p>
+                <p className="truncate text-xs font-semibold text-white">Jane Doe</p>
                 <p className="truncate font-mono text-[10px] text-muted-foreground">Admin</p>
               </div>
             </div>
@@ -245,7 +252,7 @@ function Board() {
             <Button
               variant="ghost"
               size="icon"
-              className="size-7 text-muted-foreground hover:text-foreground"
+              className="size-7 text-muted-foreground hover:text-white hover:bg-white/5 rounded-lg"
               onClick={() => {
                 void (async () => {
                   await api("/api/logout", { method: "POST" });
@@ -262,20 +269,20 @@ function Board() {
 
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 overflow-y-auto telemetry-scroll">
-        {/* Top Sub-Nav & Signal Filters Bar */}
-        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-border/80 bg-background/90 px-6 py-3 backdrop-blur-md">
+        {/* Top Header & Signal Tabs Bar */}
+        <header className="sticky top-0 z-10 flex flex-wrap items-center justify-between gap-4 border-b border-white/6 bg-[#07080B]/95 px-7 py-3 backdrop-blur-md">
           {/* Signal Category Tabs */}
-          <div className="flex items-center gap-1 rounded-lg border border-border/60 bg-card p-1 font-mono text-xs">
+          <div className="flex items-center gap-1 rounded-xl border border-white/6 bg-[#0F1218] p-1 font-mono text-xs">
             {signalTabs.map((tab) => (
               <button
                 key={tab}
                 type="button"
                 onClick={() => setActiveSignalTab(tab)}
                 className={cn(
-                  "rounded-md px-3 py-1 font-medium transition-colors",
+                  "rounded-lg px-3 py-1.5 font-medium transition-all text-xs",
                   activeSignalTab === tab
-                    ? "bg-raised text-foreground font-semibold shadow-xs"
-                    : "text-muted-foreground hover:text-foreground",
+                    ? "bg-[#161B24] text-white font-semibold shadow-xs border border-white/10"
+                    : "text-muted-foreground hover:text-white hover:bg-white/4",
                 )}
               >
                 {tab}
@@ -284,23 +291,21 @@ function Board() {
           </div>
 
           {/* Right Controls: Scope, Time, Refresh, Add Site */}
-          <div className="flex items-center gap-2.5 font-mono text-xs">
-            <select className="rounded-lg border border-border/80 bg-card px-2.5 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+          <div className="flex items-center gap-2 font-mono text-xs">
+            <select className="rounded-xl border border-white/8 bg-[#0F1218] px-3 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-orange text-xs cursor-pointer">
               <option>All environments</option>
               <option>Production</option>
               <option>Staging</option>
             </select>
 
-            <select className="rounded-lg border border-border/80 bg-card px-2.5 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring">
+            <select className="rounded-xl border border-white/8 bg-[#0F1218] px-3 py-1.5 text-muted-foreground focus:outline-none focus:ring-1 focus:ring-brand-orange text-xs cursor-pointer">
               <option>Last 24h</option>
               <option>Last 7d</option>
               <option>Last 30d</option>
             </select>
 
-            <Button
-              variant="outline"
-              size="icon"
-              className="size-8 border-border/80 bg-card hover:bg-raised"
+            <button
+              type="button"
               disabled={scanAllBusy}
               onClick={() => {
                 void (async () => {
@@ -316,15 +321,16 @@ function Board() {
                   }
                 })();
               }}
+              className="flex size-8 items-center justify-center rounded-xl border border-white/8 bg-[#0F1218] text-muted-foreground hover:text-white hover:bg-[#161B24] transition-colors"
               title="Refresh / Scan All"
             >
               {scanAllBusy ? <Spinner size={13} /> : <RefreshCwIcon className="size-3.5" />}
-            </Button>
+            </button>
 
             <Button
               size="sm"
               onClick={() => setAddOpen(true)}
-              className="gap-1 bg-[#f97316] text-white hover:bg-[#ea580c] font-sans text-xs font-semibold shadow-sm"
+              className="gap-1.5 bg-[#FF4D22] text-white hover:bg-[#FF380B] font-sans text-xs font-semibold rounded-xl px-3 py-1.5 shadow-md shadow-orange-950/40"
             >
               <PlusIcon className="size-3.5" />
               <span>Add site</span>
@@ -332,45 +338,66 @@ function Board() {
           </div>
         </header>
 
-        {/* Metric Summary Cards (KPI Strip) */}
+        {/* Top 4 KPI Metric Cards */}
         {!selected ? (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-6 pt-5">
-            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">UP</span>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="text-lg font-bold text-foreground">{upSites}</span>
-                <span className="text-success text-xs font-semibold">● {upPct}%</span>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 px-7 pt-6">
+            {/* UP Card */}
+            <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-sm">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                UP
+              </span>
+              <div className="mt-1 flex items-baseline gap-2 font-mono">
+                <span className="text-2xl font-bold text-white tracking-tight">{upSites}</span>
+                <span className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
+                  <span className="size-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(34,197,94,0.8)]" />
+                  {upPct}%
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">DEGRADED</span>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="text-lg font-bold text-foreground">{degradedSites}</span>
-                <span className="text-warning text-xs font-semibold">● {degradedPct}%</span>
+            {/* DEGRADED Card */}
+            <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-sm">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                DEGRADED
+              </span>
+              <div className="mt-1 flex items-baseline gap-2 font-mono">
+                <span className="text-2xl font-bold text-white tracking-tight">{degradedSites}</span>
+                <span className="text-amber-400 text-xs font-semibold flex items-center gap-1">
+                  <span className="size-1.5 rounded-full bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.8)]" />
+                  {degradedPct}%
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">DOWN</span>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="text-lg font-bold text-foreground">{downSites}</span>
-                <span className="text-destructive text-xs font-semibold">● {downPct}%</span>
+            {/* DOWN Card */}
+            <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-sm">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                DOWN
+              </span>
+              <div className="mt-1 flex items-baseline gap-2 font-mono">
+                <span className="text-2xl font-bold text-white tracking-tight">{downSites}</span>
+                <span className="text-rose-400 text-xs font-semibold flex items-center gap-1">
+                  <span className="size-1.5 rounded-full bg-rose-500 shadow-[0_0_8px_rgba(239,68,68,0.8)]" />
+                  {downPct}%
+                </span>
               </div>
             </div>
 
-            <div className="flex items-center justify-between rounded-xl border border-border/80 bg-card p-4 shadow-sm">
-              <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">INCIDENTS</span>
-              <div className="flex items-center gap-1.5 font-mono">
-                <span className="text-lg font-bold text-foreground">5</span>
-                <span className="text-muted-foreground text-xs">Last 24h</span>
+            {/* INCIDENTS Card */}
+            <div className="rounded-2xl border border-white/8 bg-[#0F1218] p-4 shadow-sm">
+              <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                INCIDENTS
+              </span>
+              <div className="mt-1 flex items-baseline gap-2 font-mono">
+                <span className="text-2xl font-bold text-white tracking-tight">5</span>
+                <span className="text-muted-foreground text-xs font-medium">Last 24h</span>
               </div>
             </div>
           </div>
         ) : null}
 
         {/* View Router */}
-        <main className="flex-1 p-6">
+        <main className="flex-1 p-7">
           {selected ? (
             <div>
               <SitePageView
@@ -386,6 +413,7 @@ function Board() {
           ) : currentView === "overview" ? (
             <OverviewView
               sites={sites}
+              activeSignalTab={activeSignalTab}
               onOpenSite={openSite}
               onViewIncidents={() => setCurrentView("incidents")}
               onTestSite={handleScanSingleSite}
@@ -439,7 +467,7 @@ function EditSiteDialog({
   const [error, setError] = useState("");
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[min(40rem,90dvh)] overflow-y-auto overscroll-contain sm:max-w-[440px]" showCloseButton={false}>
+      <DialogContent className="max-h-[min(40rem,90dvh)] overflow-y-auto overscroll-contain sm:max-w-[440px] bg-[#0F1218] border-white/10 text-foreground" showCloseButton={false}>
         <form
           onSubmit={(event) => {
             event.preventDefault();
@@ -469,32 +497,32 @@ function EditSiteDialog({
           }}
         >
           <DialogHeader>
-            <DialogTitle>Edit {page.site.name}</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-white">Edit {page.site.name}</DialogTitle>
+            <DialogDescription className="text-muted-foreground">
               Leave the Application Password blank to keep the one already stored.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 my-4 font-mono text-xs">
             <label>
               Name
-              <Input name="name" defaultValue={page.site.name} className="mt-1" />
+              <Input name="name" defaultValue={page.site.name} className="mt-1 bg-[#090B0F] border-white/8" />
             </label>
             <p className="help font-mono text-muted-foreground">{page.site.origin}</p>
             <label>
               WP username
-              <Input name="username" defaultValue={page.username} autoComplete="username" className="mt-1" />
+              <Input name="username" defaultValue={page.username} autoComplete="username" className="mt-1 bg-[#090B0F] border-white/8" />
             </label>
             <label>
               Application password
-              <Input name="applicationPassword" placeholder="leave blank to keep" autoComplete="new-password" className="mt-1" />
+              <Input name="applicationPassword" placeholder="leave blank to keep" autoComplete="new-password" className="mt-1 bg-[#090B0F] border-white/8" />
             </label>
-            {error ? <p className="text-destructive text-xs">{error}</p> : null}
+            {error ? <p className="text-rose-400 text-xs">{error}</p> : null}
           </div>
           <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
+            <Button type="button" variant="outline" onClick={() => onOpenChange(false)} className="border-white/8 bg-[#090B0F] hover:bg-[#141820]">
               Cancel
             </Button>
-            <Button type="submit" className="bg-[#f97316] text-white hover:bg-[#ea580c]">
+            <Button type="submit" className="bg-[#FF4D22] text-white hover:bg-[#FF380B]">
               Save
             </Button>
           </DialogFooter>

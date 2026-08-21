@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { FlameIcon } from "lucide-react";
+import { AlertTriangleIcon, CheckCircle2Icon } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,25 +40,25 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-4">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/6 pb-4">
         <div>
-          <h2 className="text-xl font-bold tracking-tight text-foreground flex items-center gap-2">
-            <FlameIcon className="size-5 text-destructive" />
+          <h2 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
+            <AlertTriangleIcon className="size-5 text-[#FF4D22]" />
             <span>Incident Command Center</span>
           </h2>
-          <p className="font-mono text-xs text-muted-foreground">
+          <p className="font-mono text-xs text-muted-foreground mt-0.5">
             Triage, investigate, and resolve production outages &amp; security regressions
           </p>
         </div>
 
         {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-card p-1 font-mono text-xs">
+        <div className="flex items-center gap-1 rounded-xl border border-white/6 bg-[#0F1218] p-1 font-mono text-xs">
           <button
             type="button"
             onClick={() => setStatusFilter("all")}
             className={cn(
-              "rounded px-3 py-1 font-medium transition-colors",
-              statusFilter === "all" ? "bg-raised text-foreground font-semibold" : "text-muted-foreground hover:text-foreground",
+              "rounded-lg px-3 py-1 font-medium transition-colors",
+              statusFilter === "all" ? "bg-[#161B24] text-white font-semibold border border-white/10" : "text-muted-foreground hover:text-white",
             )}
           >
             All ({incidentsList.length})
@@ -67,8 +67,8 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
             type="button"
             onClick={() => setStatusFilter("active")}
             className={cn(
-              "rounded px-3 py-1 font-medium transition-colors",
-              statusFilter === "active" ? "bg-destructive/20 text-destructive font-semibold" : "text-muted-foreground hover:text-foreground",
+              "rounded-lg px-3 py-1 font-medium transition-colors",
+              statusFilter === "active" ? "bg-rose-500/15 text-rose-400 font-semibold border border-rose-500/25" : "text-muted-foreground hover:text-white",
             )}
           >
             Active ({activeCount})
@@ -77,8 +77,8 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
             type="button"
             onClick={() => setStatusFilter("investigating")}
             className={cn(
-              "rounded px-3 py-1 font-medium transition-colors",
-              statusFilter === "investigating" ? "bg-warning/20 text-warning font-semibold" : "text-muted-foreground hover:text-foreground",
+              "rounded-lg px-3 py-1 font-medium transition-colors",
+              statusFilter === "investigating" ? "bg-amber-500/15 text-amber-400 font-semibold border border-amber-500/25" : "text-muted-foreground hover:text-white",
             )}
           >
             Investigating ({investigatingCount})
@@ -87,8 +87,8 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
             type="button"
             onClick={() => setStatusFilter("resolved")}
             className={cn(
-              "rounded px-3 py-1 font-medium transition-colors",
-              statusFilter === "resolved" ? "bg-success/20 text-success font-semibold" : "text-muted-foreground hover:text-foreground",
+              "rounded-lg px-3 py-1 font-medium transition-colors",
+              statusFilter === "resolved" ? "bg-emerald-500/15 text-emerald-400 font-semibold border border-emerald-500/25" : "text-muted-foreground hover:text-white",
             )}
           >
             Resolved ({resolvedCount})
@@ -101,21 +101,21 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
         {filtered.map((inc) => (
           <div
             key={inc.id}
-            className="flex flex-col justify-between rounded-xl border border-border/80 bg-card p-4 shadow-xl transition-all hover:border-border"
+            className="flex flex-col justify-between rounded-2xl border border-white/8 bg-[#0F1218] p-4.5 shadow-xl transition-all hover:border-white/14"
           >
             <div>
-              <div className="flex items-center justify-between pb-2 border-b border-border/50">
+              <div className="flex items-center justify-between pb-2.5 border-b border-white/6">
                 <span className="font-mono text-xs font-semibold text-muted-foreground">
                   {inc.startedAt}
                 </span>
                 <span
                   className={cn(
-                    "rounded px-2 py-0.5 font-mono text-[10px] font-bold uppercase",
+                    "rounded-lg px-2 py-0.5 font-mono text-[10px] font-bold uppercase",
                     inc.severity === "critical"
-                      ? "bg-destructive/20 text-destructive border border-destructive/30"
+                      ? "bg-rose-500/15 text-rose-400 border border-rose-500/25"
                       : inc.severity === "warning"
-                        ? "bg-warning/20 text-warning border border-warning/30"
-                        : "bg-success/20 text-success border border-success/30",
+                        ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
+                        : "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25",
                   )}
                 >
                   {inc.severity}
@@ -123,29 +123,29 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
               </div>
 
               <div className="mt-3">
-                <h4 className="font-bold text-sm text-foreground">{inc.host}</h4>
+                <h4 className="font-bold text-sm text-white">{inc.host}</h4>
                 <p className="mt-1 text-xs text-foreground/90 font-medium">{inc.title}</p>
                 {inc.detail ? (
-                  <p className="mt-2 font-mono text-[11px] text-muted-foreground bg-raised/40 p-2 rounded">
+                  <p className="mt-2 font-mono text-[11px] text-muted-foreground bg-[#090B0F] p-2.5 rounded-xl border border-white/6">
                     {inc.detail}
                   </p>
                 ) : null}
               </div>
 
               <div className="mt-3 grid grid-cols-2 gap-2 font-mono text-[11px] text-muted-foreground">
-                <div>Check: <span className="text-foreground">{inc.checkType}</span></div>
-                <div>Code: <span className="text-foreground">{inc.httpCode}</span></div>
-                <div>Region: <span className="text-foreground">{inc.region}</span></div>
-                <div>Duration: <span className="text-foreground">{inc.duration}</span></div>
+                <div>Check: <span className="text-white font-medium">{inc.checkType}</span></div>
+                <div>Code: <span className="text-white font-medium">{inc.httpCode}</span></div>
+                <div>Region: <span className="text-white font-medium">{inc.region}</span></div>
+                <div>Duration: <span className="text-white font-medium">{inc.duration}</span></div>
               </div>
             </div>
 
-            <div className="mt-4 pt-3 border-t border-border/40 flex items-center justify-between gap-2">
+            <div className="mt-4 pt-3 border-t border-white/6 flex items-center justify-between gap-2">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={() => setSelectedIncident(inc)}
-                className="w-full text-xs font-mono"
+                className="w-full text-xs font-mono border-white/8 bg-[#090B0F] hover:bg-[#161B24] rounded-xl text-[#EDEDF0]"
               >
                 Inspect Timeline
               </Button>
@@ -153,7 +153,7 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
                 <Button
                   size="sm"
                   onClick={() => handleResolve(inc.id)}
-                  className="bg-success/20 text-success hover:bg-success/30 border border-success/30 text-xs font-mono"
+                  className="bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-600/30 text-xs font-mono rounded-xl shrink-0"
                 >
                   Resolve
                 </Button>
@@ -164,62 +164,80 @@ export function IncidentsView({ sites }: { sites: readonly OverviewRow[] }) {
       </div>
 
       {/* Incident Detail Modal */}
-      {selectedIncident ? (
-        <Dialog open={!!selectedIncident} onOpenChange={(open) => !open && setSelectedIncident(null)}>
-          <DialogContent className="max-w-xl border-border bg-card">
-            <DialogHeader>
-              <DialogTitle className="flex items-center justify-between">
-                <span>Incident Diagnostics: {selectedIncident.host}</span>
-                <span
-                  className={cn(
-                    "rounded px-2 py-0.5 font-mono text-xs uppercase",
-                    selectedIncident.severity === "critical" ? "bg-destructive/20 text-destructive" : "bg-warning/20 text-warning",
-                  )}
-                >
-                  {selectedIncident.severity}
-                </span>
-              </DialogTitle>
-            </DialogHeader>
+      <Dialog open={Boolean(selectedIncident)} onOpenChange={(open) => !open && setSelectedIncident(null)}>
+        <DialogContent className="sm:max-w-xl border-white/10 bg-[#0F1218] text-foreground rounded-2xl">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 font-mono text-base font-bold text-white">
+              <span>Incident Diagnostics:</span>
+              <span className="text-rose-400">{selectedIncident?.host}</span>
+            </DialogTitle>
+          </DialogHeader>
 
-            <div className="space-y-4 font-mono text-xs">
-              <div className="rounded-lg border border-border/60 bg-raised/50 p-3">
-                <p className="font-semibold text-foreground">{selectedIncident.title}</p>
-                <p className="text-muted-foreground mt-1">{selectedIncident.detail}</p>
+          {selectedIncident ? (
+            <div className="space-y-4 font-mono text-xs mt-2">
+              <div className="grid grid-cols-2 gap-3 rounded-xl border border-white/6 bg-[#090B0F] p-3.5">
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Title</span>
+                  <span className="font-semibold text-white">{selectedIncident.title}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Severity</span>
+                  <span className="font-semibold uppercase text-rose-400">{selectedIncident.severity}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Status</span>
+                  <span className="font-semibold capitalize text-amber-400">{selectedIncident.status}</span>
+                </div>
+                <div>
+                  <span className="text-muted-foreground block text-[10px]">Started At</span>
+                  <span className="font-semibold text-white">{selectedIncident.startedAt} ({selectedIncident.duration})</span>
+                </div>
               </div>
 
               <div>
-                <h5 className="font-semibold text-foreground uppercase tracking-wider mb-2">
-                  Probe History &amp; Timeline
-                </h5>
-                <div className="space-y-1.5">
-                  {selectedIncident.recentChecks.map((c, i) => (
-                    <div key={i} className="flex items-center justify-between p-2 rounded bg-raised/30 border border-border/40">
-                      <span>{c.time} UTC</span>
-                      <span className={cn(c.status === "Down" ? "text-destructive" : "text-success")}>
-                        {c.status} ({c.code})
-                      </span>
+                <span className="text-muted-foreground block text-[11px] font-semibold uppercase mb-1.5">
+                  Recent Heartbeat Timeline
+                </span>
+                <div className="space-y-1.5 rounded-xl border border-white/6 bg-[#090B0F] p-3">
+                  {selectedIncident.recentChecks.map((chk, i) => (
+                    <div key={i} className="flex items-center justify-between text-muted-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="text-white/80">{chk.time}</span>
+                        <span>•</span>
+                        <span className={chk.status === "Down" ? "text-rose-400 font-semibold" : "text-emerald-400 font-semibold"}>
+                          {chk.status}
+                        </span>
+                      </div>
+                      <span className="text-white">{chk.code}</span>
                     </div>
                   ))}
                 </div>
               </div>
             </div>
+          ) : null}
 
-            <DialogFooter className="gap-2">
-              <Button variant="outline" onClick={() => setSelectedIncident(null)}>
-                Close
+          <DialogFooter className="mt-4 gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSelectedIncident(null)}
+              className="border-white/8 bg-[#090B0F] hover:bg-[#161B24] rounded-xl"
+            >
+              Close
+            </Button>
+            {selectedIncident && selectedIncident.status !== "resolved" ? (
+              <Button
+                type="button"
+                onClick={() => handleResolve(selectedIncident.id)}
+                className="bg-emerald-600 text-white hover:bg-emerald-500 rounded-xl"
+              >
+                <CheckCircle2Icon className="size-4 mr-1" />
+                <span>Mark as Resolved</span>
               </Button>
-              {selectedIncident.status !== "resolved" ? (
-                <Button
-                  onClick={() => handleResolve(selectedIncident.id)}
-                  className="bg-success text-black hover:bg-success/90 font-semibold"
-                >
-                  Mark as Resolved
-                </Button>
-              ) : null}
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      ) : null}
+            ) : null}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

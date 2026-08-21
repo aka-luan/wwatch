@@ -36,7 +36,7 @@ export function FleetStatStrip({
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 bg-raised px-(--gutter) py-3">
+    <div className="flex flex-wrap items-center gap-x-7 gap-y-2 rounded-2xl border border-white/8 bg-[#0F1218] px-5 py-3.5 shadow-md">
       {counters.map((counter) =>
         counter.filter ? (
           <FilterCounter
