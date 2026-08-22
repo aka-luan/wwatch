@@ -7,10 +7,10 @@ export const Navbar: React.FC = () => {
   return (
     <header className="sticky top-0 z-50 w-full backdrop-blur-md bg-[#07080B]/85 border-b border-white/[0.07]">
       {/* Top Announcement Bar */}
-      <div className="w-full bg-[#090B0F] border-b border-white/[0.05] py-2 px-4 text-center">
+      <div className="w-full py-2 px-4 text-center">
         <a
           href="#features"
-          className="inline-flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-white transition-colors group"
+          className="inline-flex items-center gap-2 text-xs font-mono text-neutral-400 hover:text-neutral-200 transition-colors group"
         >
           <span className="w-1.5 h-1.5 rounded-full bg-brand-orange animate-pulse" />
           <span>Now live: monitor every WordPress site from one control plane</span>
