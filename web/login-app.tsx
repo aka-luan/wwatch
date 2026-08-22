@@ -24,7 +24,7 @@ function LoginForm() {
                 headers: { "content-type": "application/json" },
                 body: JSON.stringify({ password }),
               });
-              location.href = "/";
+              location.href = "/app";
             } catch (err) {
               setError(
                 err instanceof Error && err.message === "too many attempts"

@@ -3,15 +3,15 @@ import type { ComponentProps } from "react";
 
 import { cn } from "@/lib/utils";
 
-const cardVariants = cva("flex flex-col rounded-lg bg-card text-card-foreground", {
+const cardVariants = cva("flex flex-col rounded-2xl bg-card text-card-foreground", {
   variants: {
     variant: {
       /** The default: a surface, with a hairline only where it meets the page. */
-      default: "border border-border",
+      default: "border border-border shadow-sm",
       /** No border at all; the surface change alone carries the grouping. */
       plain: "",
       /** For content that genuinely floats above the page, such as a popover shell. */
-      elevated: "border border-border shadow-[0_1px_2px_rgba(0,0,0,0.4)]",
+      elevated: "border border-border-strong shadow-[0_4px_20px_rgba(0,0,0,0.5)]",
     },
   },
   defaultVariants: {

@@ -92,7 +92,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
               key={column.key}
               scope="col"
               className={cn(
-                "py-2 pr-4 text-[12px] leading-none font-medium text-muted-foreground",
+                "py-2.5 pr-4 text-[12px] leading-none font-mono font-medium text-muted-foreground",
                 column.className,
               )}
             >
@@ -101,7 +101,7 @@ export function FleetTable({ sites, loaded, selectedIds, onSelectionChange, onOp
           ))}
         </tr>
       </thead>
-      <tbody>
+      <tbody className="divide-y divide-border/50">
         {table.rows.map((row) => (
           <FleetTableRow
             key={row.row.site.id}
@@ -175,7 +175,7 @@ function FleetTableRow({
         <StatusBadge status={row.status}>{row.statusLabel}</StatusBadge>
       </td>
       <td className="py-3 pr-4 align-middle text-[12.5px] leading-4 text-foreground">
-        {row.finding ? (
+        {row.finding ? (\
           <span className="[overflow-wrap:anywhere]">
             {row.finding}
             {row.findingExtra ? <span className="text-muted-foreground"> {row.findingExtra}</span> : null}

@@ -54,6 +54,8 @@ export function createApp(
       return;
     }
     const open = new Set([
+      "/",
+      "/index.html",
       "/login.html",
       "/login",
       "/login.js",
