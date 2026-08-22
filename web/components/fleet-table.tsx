@@ -175,7 +175,7 @@ function FleetTableRow({
         <StatusBadge status={row.status}>{row.statusLabel}</StatusBadge>
       </td>
       <td className="py-3 pr-4 align-middle text-[12.5px] leading-4 text-foreground">
-        {row.finding ? (\
+        {row.finding ? (
           <span className="[overflow-wrap:anywhere]">
             {row.finding}
             {row.findingExtra ? <span className="text-muted-foreground"> {row.findingExtra}</span> : null}

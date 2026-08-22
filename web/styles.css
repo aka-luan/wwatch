@@ -282,8 +282,8 @@ body {
     opacity: 0.85;
   }
 
-  *,\
-  *::before,\
+  *,
+  *::before,
   *::after {
     transition-duration: 0.01ms !important;
     animation-duration: 0.01ms !important;

@@ -111,7 +111,7 @@ function Board() {
           toast.error(`${failed} scans failed`);
         } else if (failed > 0) {
           toast.message(`${finished.length} scans finished`, {
-            description: `${failed} failed` ,
+            description: `${failed} failed`,
           });
         } else {
           toast.success(`${finished.length} scans finished`);
@@ -156,7 +156,7 @@ function Board() {
   const degradedPct = ((degradedSites / totalSites) * 100).toFixed(1);
   const downPct = ((downSites / totalSites) * 100).toFixed(1);
 
-  const navItems: Array<{ id: NavView; label: string; icon: React.ElementType }> = [\
+  const navItems: Array<{ id: NavView; label: string; icon: React.ElementType }> = [
     { id: "overview", label: "Overview", icon: LayoutGridIcon },
     { id: "sites", label: "Sites", icon: GlobeIcon },
     { id: "alerts", label: "Alerts", icon: BellIcon },
@@ -287,7 +287,7 @@ function Board() {
               >
                 {tab}
               </button>
-            ))
+            ))}
           </div>
 
           {/* Right Controls: Scope, Time, Refresh, Add Site */}
@@ -410,7 +410,7 @@ function Board() {
                 <EditSiteDialog open={editOpen} onOpenChange={setEditOpen} page={selectedPage} onSaved={refresh} />
               ) : null}
             </div>
-          ) : currentView === "overview" ? (\
+          ) : currentView === "overview" ? (
             <OverviewView
               sites={sites}
               activeSignalTab={activeSignalTab}
