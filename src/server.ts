@@ -4,6 +4,7 @@ import { serveStatic } from "@hono/node-server/serve-static";
 import { alertConfigFromEnv } from "./alert.js";
 import { createApp } from "./http.js";
 import { Fleet } from "./fleet.js";
+import { assertExposureSafe, ensureWatchSecret } from "./local-config.js";
 import { defaultDeps } from "./scan.js";
 import { Store, storeConfigFromEnv } from "./store.js";
 
@@ -20,6 +21,13 @@ export function createLocalApp(fleet: Fleet, dashboardPassword = "", cronSecret 
 if (process.argv[1] && pathToFileURL(process.argv[1]).href === import.meta.url) {
   const port = Number(process.env.PORT ?? 8787);
   const host = process.env.HOST ?? "127.0.0.1";
+  try {
+    assertExposureSafe(host, process.env.DASHBOARD_PASSWORD ?? "");
+    ensureWatchSecret();
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : error);
+    process.exit(1);
+  }
   const fleet = new Fleet(new Store(storeConfigFromEnv()), defaultDeps, alertConfigFromEnv());
   const app = createLocalApp(fleet, process.env.DASHBOARD_PASSWORD ?? "", process.env.CRON_SECRET ?? "");
   serve({ fetch: app.fetch, hostname: host, port }, (info) => {

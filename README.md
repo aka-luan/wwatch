@@ -17,11 +17,15 @@ Open http://127.0.0.1:8787
 
 Data lives in `data/watch.db`. Override the path with `WATCH_DB`.
 
+On first start the server writes a random `WATCH_SECRET` to `watch.secret` next to the database (owner-only, gitignored with `data/`). It encrypts the Application Passwords you add and signs board sessions, so sessions survive restarts. Back it up with the database: without it the stored passwords cannot be read. Set `WATCH_SECRET` yourself to use your own value. A board that ran before this upgrades its stored passwords on that first start.
+
 To require a password for the board itself:
 
 ```bash
 DASHBOARD_PASSWORD=your-password npm start
 ```
+
+The server only listens on loopback without a password. `HOST=0.0.0.0` (or any non-loopback address) refuses to start unless `DASHBOARD_PASSWORD` is set.
 
 ## Deploy on Vercel
 
@@ -46,7 +50,7 @@ npx vercel
 
 Application Passwords for your WordPress sites live in Turso, encrypted at rest with AES-256-GCM under a per-row scrypt key derived from `WATCH_SECRET`. Treat that database like production secrets.
 
-The board cookie is a random nonce and issue time signed with `WATCH_SECRET`, good for 7 days. **Log out** clears it and records the cookie's nonce as revoked, so a copy taken beforehand stops working. Locally, with no `WATCH_SECRET` set, the signing key is random per process, so restarting the dev server ends open sessions.
+The board cookie is a random nonce and issue time signed with `WATCH_SECRET`, good for 7 days. **Log out** clears it and records the cookie's nonce as revoked, so a copy taken beforehand stops working. Locally, the generated `watch.secret` signs it.
 
 Upgrading a board that ran without `WATCH_SECRET`: set it, then start the app once. Rows sealed under the old board password are read with it one last time and resealed under the new secret. Keep `DASHBOARD_PASSWORD` unchanged across that first start.
 
